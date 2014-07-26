@@ -125,6 +125,19 @@ class Web(object):
       except (urllib_error.URLError, HTTPException) as exc:
         raise FetchError(exc)
 
+  def fetch(self, link, location=None, conn_timeout=None):
+    if link.local and (location is None or os.path.dirname(link.path) == location):
+      return link.path
+    location = location or safe_mkdtemp()
+    target = os.path.join(location, link.filename)
+    if os.path.exists(target):
+      return target
+    with contextlib.closing(self.open(link, conn_timeout=conn_timeout)) as url_fp:
+      safe_mkdir(os.path.dirname(target))
+      with open(target, 'wb') as fp:
+        fp.write(url_fp.read())
+    return target
+
 
 class CachedWeb(object):
   """A basic http cache.

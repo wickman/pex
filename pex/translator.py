@@ -46,32 +46,14 @@ class ChainedTranslator(TranslatorBase):
 
 
 class SourceTranslator(TranslatorBase):
-  @classmethod
-  def run_2to3(cls, path):
-    from lib2to3.refactor import get_fixers_from_package, RefactoringTool
-    rt = RefactoringTool(get_fixers_from_package('lib2to3.fixes'))
-    with TRACER.timed('Translating %s' % path):
-      for root, dirs, files in os.walk(path):
-        for fn in files:
-          full_fn = os.path.join(root, fn)
-          if full_fn.endswith('.py'):
-            with TRACER.timed('%s' % fn, V=3):
-              try:
-                chmod_plus_w(full_fn)
-                rt.refactor_file(full_fn, write=True)
-              except IOError as e:
-                TRACER.log('Failed to translate %s: %s' % (fn, e))
-
   def __init__(self,
                install_cache=None,
                interpreter=PythonInterpreter.get(),
                platform=Platform.current(),
-               use_2to3=False,
                conn_timeout=None,
                installer_impl=WheelInstaller):
     self._interpreter = interpreter
     self._installer_impl = installer_impl
-    self._use_2to3 = use_2to3
     self._install_cache = install_cache or safe_mkdtemp()
     safe_mkdir(self._install_cache)
     self._conn_timeout = conn_timeout
@@ -92,9 +74,6 @@ class SourceTranslator(TranslatorBase):
       return None
 
     try:
-      if self._use_2to3 and version >= (3,):
-        with TRACER.timed('Translating 2->3 %s' % package.name):
-          self.run_2to3(unpack_path)
       installer = self._installer_impl(
           unpack_path,
           interpreter=self._interpreter,

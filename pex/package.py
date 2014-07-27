@@ -109,10 +109,11 @@ class SourcePackage(Package):
   def __init__(self, url, **kw):
     super(SourcePackage, self).__init__(url, **kw)
 
-    ext = Archive.get_extension(self.filename)
+    ext = Archiver.get_extension(self.filename)
     if ext is None:
-      raise self.InvalidLink('%s does not end with any of: %s' % (
-          self.filename, ' '.join(self.EXTENSIONS)))
+      raise self.InvalidLink('%s is not a recognized archive format.' % self.filename)
+
+    fragment = self.filename[:-len(ext)]
     self._name, self._raw_version = self.split_fragment(fragment)
 
   @property

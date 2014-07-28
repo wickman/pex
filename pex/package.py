@@ -124,19 +124,6 @@ class SourcePackage(Package):
   def raw_version(self):
     return safe_name(self._raw_version)
 
-  def fetch(self, location=None, conn_timeout=None):
-    """Fetch and unpack this source target into the location.
-
-    :param location: The location into which the archive should be unpacked.  If None, a temporary
-      ephemeral directory will be created.
-    :type location: string or None
-    :param conn_timeout: A connection timeout for the fetch.  If None, a default is used.
-    :type conn_timeout: float or None
-    :returns: The assumed root directory of the package.
-    """
-    target = super(SourcePackage, self).fetch(conn_timeout=conn_timeout)
-    return Archiver.unpack(target, location)
-
   # SourcePackages are always compatible as they can be translated to a distribution.
   def compatible(self, identity, platform=Platform.current()):
     return True

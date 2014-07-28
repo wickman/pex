@@ -9,7 +9,7 @@ import uuid
 
 from .base import requirement_is_exact
 from .common import safe_mkdtemp
-from .fetcher import Fetcher, PyPIFetcher
+from .locator import Locator, PyPILocator
 from .http import Crawler
 from .package import EggPackage, Package, SourcePackage, WheelPackage
 from .platforms import Platform
@@ -21,17 +21,17 @@ class Obtainer(object):
   """
     A requirement obtainer.
 
-    An Obtainer takes a Crawler, a list of Fetchers (which take requirements
+    An Obtainer takes a Crawler, a list of Locators (which take requirements
     and tells us where to look for them) and a list of Translators (which
     translate egg or source packages into usable distributions) and turns them
     into a cohesive requirement pipeline.
 
     >>> from pex.http import Crawler
     >>> from pex.obtainer import Obtainer
-    >>> from pex.fetcher import PyPIFetcher
+    >>> from pex.locator import PyPILocator
     >>> from pex.resolver import Resolver
     >>> from pex.translator import Translator
-    >>> obtainer = Obtainer(Crawler(), [PyPIFetcher()], [Translator.default()])
+    >>> obtainer = Obtainer(Crawler(), [PyPILocator()], [Translator.default()])
     >>> resolver = Resolver(obtainer)
     >>> distributions = resolver.resolve(['ansicolors', 'elementtree', 'mako', 'markdown', 'psutil',
     ...                                   'pygments', 'pylint', 'pytest'])
@@ -61,11 +61,11 @@ class Obtainer(object):
     return (package.version, cls.package_type_precedence(package, precedence=precedence))
 
   def __init__(self, crawler=None,
-                     fetchers=None,
+                     locators=None,
                      translators=None,
                      precedence=DEFAULT_PACKAGE_PRECEDENCE):
     self._crawler = crawler or Crawler()
-    self._fetchers = fetchers or [PyPIFetcher()]
+    self._locators = locators or [PyPILocator()]
     if isinstance(translators, (list, tuple)):
       self._translator = ChainedTranslator(*translators)
     else:
@@ -73,14 +73,14 @@ class Obtainer(object):
     self._precedence = precedence
 
   def _translate_href(self, href):
-    package = Package.from_href(href, opener=self._crawler.opener)
+    package = Package.from_href(href)
     # Restrict this to a package found in the package precedence list, so that users of
     # obtainers can restrict which distribution formats they support.
     if any(isinstance(package, package_type) for package_type in self._precedence):
       return package
 
   def _iter_unordered(self, req):
-    url_iterator = itertools.chain.from_iterable(fetcher.urls(req) for fetcher in self._fetchers)
+    url_iterator = itertools.chain.from_iterable(locator.urls(req) for locator in self._locators)
     for package in filter(None, map(self._translate_href, self._crawler.crawl(url_iterator))):
       if package.satisfies(req):
         yield package
@@ -115,7 +115,7 @@ class CachingObtainer(Obtainer):
     super(CachingObtainer, self).__init__(*args, **kw)
     self.__cache_obtainer = Obtainer(
         crawler=self._crawler,
-        fetchers=[Fetcher([self.__install_cache])],
+        locators=[Locator([self.__install_cache])],
         translators=self._translator,
         precedence=self._precedence,
     )

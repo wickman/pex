@@ -18,16 +18,15 @@ else:
   from urlparse import urljoin
 
 
-class FetcherBase(AbstractClass):
-  """
-    A fetcher takes a Requirement and tells us where to crawl to find it.
-  """
+class LocatorBase(AbstractClass):
+  """A locator takes a Requirement and tells us where to crawl to find it."""
+
   @abstractmethod
   def urls(self, req):
     raise NotImplementedError
+  
 
-
-class Fetcher(FetcherBase):
+class Locator(LocatorBase):
   def __init__(self, urls):
     self._urls = urls
 
@@ -35,13 +34,10 @@ class Fetcher(FetcherBase):
     return self._urls
 
 
-class PyPIFetcher(FetcherBase):
+class PyPILocator(LocatorBase):
   PYPI_BASE = 'https://pypi.python.org/simple/'
 
-  def __init__(self, pypi_base=PYPI_BASE, use_mirrors=False):
-    if use_mirrors:
-      warnings.warn('use_mirrors is now deprecated.')
-
+  def __init__(self, pypi_base=PYPI_BASE):
     pypi_url = urlparse.urlparse(pypi_base)
     if not pypi_url.scheme:
       self.__pypi_base = 'http://' + pypi_base

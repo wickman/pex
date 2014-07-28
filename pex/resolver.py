@@ -8,8 +8,11 @@ from collections import defaultdict
 from pkg_resources import Distribution
 
 from .base import maybe_requirement_list
+from .crawler import Crawler
+from .http import Context
 from .interpreter import PythonInterpreter
-from .obtainer import Obtainer
+from .iterator import Iterator
+from .locator import PyPILocator
 from .orderedset import OrderedSet
 from .package import distribution_compatible, Package
 from .platforms import Platform
@@ -47,7 +50,16 @@ class _DistributionCache(object):
     return self._translated_packages[package]
 
 
-def resolve(requirements, obtainer=None, interpreter=None, platform=None):
+def resolve(
+    requirements,     # Requirement iterator (e.g. RequirementsTxt or list of strings)
+    locators=None,    # how to locate 
+    translator=None,  # package link -> distribution
+    interpreter=None, # interpreter with which to build/filter source packages
+    platform=None,    # platform with which to filter distributions
+    context=None,     # request context for network connectivity
+    threads=1,        # how many threads to use when resolving
+    cache=None):      # fetch cache for things
+
   """List all distributions needed to (recursively) meet `requirements`
 
   When resolving dependencies, multiple (potentially incompatible) requirements may be encountered.
@@ -63,23 +75,28 @@ def resolve(requirements, obtainer=None, interpreter=None, platform=None):
   cache = _DistributionCache()
   interpreter = interpreter or PythonInterpreter.get()
   platform = platform or Platform.current()
-  obtainer = obtainer or Obtainer.default(platform=platform, interpreter=interpreter)
+  context = context or Context.get()
+  crawler = Crawler(context, threads=threads)
+  locators = locators or [PyPILocator()]
+  iterator = Iterator(locators=locators, crawler=crawler, threads=threads)
 
   requirements = maybe_requirement_list(requirements)
+  # requirements = RequirementsTxt.wrap(requirements)
   distribution_set = defaultdict(list)
   requirement_set = defaultdict(list)
   processed_requirements = set()
 
   def packages(requirement, existing=None):
     if existing is None:
-      existing = obtainer.iter(requirement)
+      existing = iterator.iter(requirement)
     return [package for package in existing
             if package.satisfies(requirement)
             and package.compatible(interpreter.identity, platform)]
 
   def requires(package, requirement):
     if not cache.has(package):
-      dist = obtainer.obtain(package)
+      local_package = Package.from_filename(context.fetch(package, into=cache))
+      dist = translator.translate(local_package, into=cache)
       if dist is None:
         raise Untranslateable('Package %s is not translateable.' % package)
       if not distribution_compatible(dist, interpreter, platform):

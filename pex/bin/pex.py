@@ -13,7 +13,7 @@ import sys
 from optparse import OptionParser
 
 from pex.common import safe_delete, safe_mkdtemp
-from pex.fetcher import Fetcher, PyPIFetcher
+from pex.locator import Locator, PyPILocator
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
 from pex.obtainer import CachingObtainer
@@ -229,13 +229,13 @@ def build_obtainer(options):
   interpreter = interpreter_from_options(options)
   platform = options.platform
 
-  fetchers = [Fetcher(options.repos)]
+  locators = [Locator(options.repos)]
 
   if options.pypi:
-    fetchers.append(PyPIFetcher())
+    locators.append(PyPILocator())
 
   if options.indices:
-    fetchers.extend(PyPIFetcher(index) for index in options.indices)
+    locators.extend(PyPILocator(index) for index in options.indices)
 
   translator = translator_from_options(options)
 
@@ -246,7 +246,7 @@ def build_obtainer(options):
 
   obtainer = CachingObtainer(
       install_cache=options.cache_dir,
-      fetchers=fetchers,
+      locators=locators,
       translators=translator,
       precedence=package_precedence)
 

@@ -51,7 +51,8 @@ class Context(AbstractClass):
     target = os.path.join(into or safe_mkdtemp(), link.filename)
 
     if os.path.exists(target):
-      raise FetchError('Path %s already exists!' % target)
+      # Assume that if the local file already exists, it is safe to use.
+      return target
 
     target_tmp = '%s.%s' % (target, uuid.uuid4())
     with contextlib.closing(self.open(link)) as in_fp:

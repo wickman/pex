@@ -12,6 +12,7 @@ import tempfile
 import threading
 import zipfile
 from collections import defaultdict
+from uuid import uuid4
 
 
 # See http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
@@ -101,6 +102,26 @@ def safe_rmtree(directory):
   """Delete a directory if it's present. If it's not present, no-op."""
   if os.path.exists(directory):
     shutil.rmtree(directory, True)
+
+
+def safe_copy(source, dest, overwrite=False):
+  def do_copy():
+    temp_dest = dest + uuid4().get_hex()
+    shutil.copyfile(source, temp_dest)
+    os.rename(temp_dest, dest)
+
+  try:
+    os.link(source, dest)
+  except OSError as e:
+    if e.errno == errno.EEXIST:
+      # File already exists.  If overwrite=True, write otherwise skip.
+      if overwrite:
+        do_copy()
+    elif e.errno == errno.EXDEV:
+      # Hard link across devices, fall back on copying
+      do_copy()
+    else:
+      raise
 
 
 def chmod_plus_x(path):

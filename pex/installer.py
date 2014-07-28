@@ -122,32 +122,10 @@ exec(compile(open(__file__).read().replace('\\r\\n', '\\n'), __file__, 'exec'))
 
 
 class Installer(InstallerBase):
-  """
-    Install an unpacked distribution with a setup.py.
+  """Install an unpacked distribution with a setup.py."""
 
-    Simple example:
-      >>> from pex.package import SourcePackage
-      >>> from pex.http import Web
-      >>> tornado_tgz = SourcePackage(
-      ...    'http://pypi.python.org/packages/source/t/tornado/tornado-2.3.tar.gz',
-      ...    opener=Web())
-      >>> tornado_installer = Installer(tornado_tgz.fetch())
-      >>> tornado_installer.distribution()
-      tornado 2.3 (/private/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpLLe_Ph/lib/python2.6/site-packages)
-
-    You can then take that distribution and activate it:
-      >>> tornado_distribution = tornado_installer.distribution()
-      >>> tornado_distribution.activate()
-      >>> import tornado
-
-    Alternately you can use the EggInstaller to create an egg instead:
-      >>> from pex.installer import EggInstaller
-      >>> EggInstaller(tornado_tgz.fetch()).bdist()
-      '/var/folders/Uh/UhXpeRIeFfGF7HoogOKC+++++TI/-Tmp-/tmpufgZOO/tornado-2.3-py2.6.egg'
-  """
   def __init__(self, source_dir, strict=True, interpreter=None):
-    """
-      Create an installer from an unpacked source distribution in source_dir.
+    """Create an installer from an unpacked source distribution in source_dir.
 
       If strict=True, fail if any installation dependencies (e.g. setuptools)
       are missing.
@@ -223,9 +201,8 @@ class DistributionPackager(InstallerBase):
 
 
 class Packager(DistributionPackager):
-  """
-    Create a source distribution from an unpacked setup.py-based project.
-  """
+  """Create a source distribution from an unpacked setup.py-based project."""
+
   def _setup_command(self):
     return ['sdist', '--formats=gztar', '--dist-dir=%s' % self._install_tmp]
 
@@ -235,9 +212,8 @@ class Packager(DistributionPackager):
 
 
 class EggInstaller(DistributionPackager):
-  """
-    Create a source distribution from an unpacked setup.py-based project.
-  """
+  """Create a binary egg distribution from an unpacked setup.py-based project."""
+
   def _setup_command(self):
     return ['bdist_egg', '--dist-dir=%s' % self._install_tmp]
 
@@ -247,9 +223,8 @@ class EggInstaller(DistributionPackager):
 
 
 class WheelInstaller(DistributionPackager):
-  """
-    Create a source distribution from an unpacked setup.py-based project.
-  """
+  """Create a binary wheel distribution from an unpacked setup.py-based project."""
+
   MIXINS = {
       'setuptools': 'setuptools>=2',
       'wheel': 'wheel>=0.17',

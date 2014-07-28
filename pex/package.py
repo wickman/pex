@@ -1,16 +1,12 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import contextlib
 import os
-import tarfile
-import zipfile
 
 from pkg_resources import EGG_NAME, parse_version, safe_name
 
 from .archiver import Archiver
 from .base import maybe_requirement
-from .common import safe_mkdtemp
 from .link import Link
 from .interpreter import PythonInterpreter
 from .pep425 import PEP425, PEP425Extras
@@ -19,6 +15,9 @@ from .platforms import Platform
 
 class Package(Link):
   """Base class for named Python binary packages (e.g. source, egg, wheel)."""
+
+  class Error(Exception): pass
+  class InvalidPackage(Error): pass
 
   # The registry of concrete implementations
   _REGISTRY = set()
@@ -38,10 +37,12 @@ class Package(Link):
     :type href: string
     :returns: A Package object if a valid concrete implementation exists, otherwise None.
     """
+    href = Link.wrap(href)
+
     for package_type in cls._REGISTRY:
       try:
-        return package_type(href, **kw)
-      except package_type.InvalidLink:
+        return package_type(href.url, **kw)
+      except package_type.InvalidPackage:
         continue
 
   @property
@@ -89,13 +90,13 @@ class SourcePackage(Package):
   def split_fragment(cls, fragment):
     """A heuristic used to split a string into version name/fragment:
 
-       >>> split_fragment('pysolr-2.1.0-beta')
+       >>> SourcePackage.split_fragment('pysolr-2.1.0-beta')
        ('pysolr', '2.1.0-beta')
-       >>> split_fragment('cElementTree-1.0.5-20051216')
+       >>> SourcePackage.split_fragment('cElementTree-1.0.5-20051216')
        ('cElementTree', '1.0.5-20051216')
-       >>> split_fragment('pil-1.1.7b1-20090412')
+       >>> SourcePackage.split_fragment('pil-1.1.7b1-20090412')
        ('pil', '1.1.7b1-20090412')
-       >>> split_fragment('django-plugin-2-2.3')
+       >>> SourcePackage.split_fragment('django-plugin-2-2.3')
        ('django-plugin-2', '2.3')
     """
     def likely_version_component(enumerated_fragment):
@@ -111,7 +112,7 @@ class SourcePackage(Package):
 
     ext = Archiver.get_extension(self.filename)
     if ext is None:
-      raise self.InvalidLink('%s is not a recognized archive format.' % self.filename)
+      raise self.InvalidPackage('%s is not a recognized archive format.' % self.filename)
 
     fragment = self.filename[:-len(ext)]
     self._name, self._raw_version = self.split_fragment(fragment)
@@ -136,16 +137,16 @@ class EggPackage(Package):
     super(EggPackage, self).__init__(url, **kw)
     filename, ext = os.path.splitext(self.filename)
     if ext.lower() != '.egg':
-      raise self.InvalidLink('Not an egg: %s' % filename)
+      raise self.InvalidPackage('Not an egg: %s' % filename)
     matcher = EGG_NAME(filename)
     if not matcher:
-      raise self.InvalidLink('Could not match egg: %s' % filename)
+      raise self.InvalidPackage('Could not match egg: %s' % filename)
 
     self._name, self._raw_version, self._py_version, self._platform = matcher.group(
         'name', 'ver', 'pyver', 'plat')
 
     if self._raw_version is None or self._py_version is None:
-      raise self.InvalidLink('url with .egg extension but bad name: %s' % url)
+      raise self.InvalidPackage('url with .egg extension but bad name: %s' % url)
 
   def __hash__(self):
     return hash((self.name, self.version, self.py_version, self.platform))
@@ -181,12 +182,12 @@ class WheelPackage(Package):
     super(WheelPackage, self).__init__(url, **kw)
     filename, ext = os.path.splitext(self.filename)
     if ext.lower() != '.whl':
-      raise self.InvalidLink('Not a wheel: %s' % filename)
+      raise self.InvalidPackage('Not a wheel: %s' % filename)
     try:
       self._name, self._raw_version, self._py_tag, self._abi_tag, self._arch_tag = (
           filename.split('-'))
     except ValueError:
-      raise self.InvalidLink('Wheel filename malformed.')
+      raise self.InvalidPackage('Wheel filename malformed.')
     # See https://github.com/pypa/pip/issues/1150 for why this is unavoidable.
     self._name.replace('_', '-')
     self._raw_version.replace('_', '-')

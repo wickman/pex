@@ -3,8 +3,10 @@ import contextlib
 import io
 import os
 import shutil
+import uuid
 
-from .compatibility import AbstractClass
+from .compatibility import AbstractClass, PY3
+from .common import safe_mkdtemp, safe_open
 
 try:
   import requests
@@ -16,6 +18,11 @@ try:
   from cachecontrol.caches import FileCache
 except ImportError:
   CacheControl = FileCache = None
+
+if PY3:
+  import urllib.request as urllib_request
+else:
+  import urllib2 as urllib_request
 
 
 class Context(AbstractClass):
@@ -56,7 +63,7 @@ class Context(AbstractClass):
 
     target_tmp = '%s.%s' % (target, uuid.uuid4())
     with contextlib.closing(self.open(link)) as in_fp:
-      with open(target_tmp, 'wb') as out_fp:
+      with safe_open(target_tmp, 'wb') as out_fp:
         shutil.copyfileobj(in_fp, out_fp)
 
     os.rename(target_tmp, target)
@@ -77,6 +84,9 @@ class RequestsContext(Context):
     self._session = session or requests.session()
 
   def open(self, link):
+    # requests does not support file:// -- so we must short-circuit manually
+    if link.local:
+      return open(link.path, 'rb')
     try:
       return io.BytesIO(requests.get(link.url).content)
     except requests.exceptions.RequestException as e:
@@ -91,7 +101,7 @@ class CachedRequestsContext(RequestsContext):
   DEFAULT_CACHE = '~/.pex/cache'
 
   def __init__(self, cache=None):
-    self._cache = os.path.realpath(os.path.expanduser(self.cache or DEFAULT_CACHE))
+    self._cache = os.path.realpath(os.path.expanduser(cache or self.DEFAULT_CACHE))
     super(CachedRequestsContext, self).__init__(
         CacheControl(requests.session(), cache=FileCache(self._cache)))
 

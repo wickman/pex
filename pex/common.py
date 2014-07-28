@@ -7,7 +7,6 @@ import errno
 import os
 import shutil
 import stat
-import sys
 import tempfile
 import threading
 import zipfile
@@ -170,11 +169,13 @@ class Chroot(object):
   Files may be tagged when added in order to keep track of multiple overlays
   in the chroot.
   """
-  class ChrootException(Exception): pass
 
-  class ChrootTaggingException(Exception):
+  class Error(Exception): pass
+  class ChrootException(Error): pass
+
+  class ChrootTaggingException(Error):
     def __init__(self, filename, orig_tag, new_tag):
-      Exception.__init__(self,
+      super(Chroot.ChrootTaggingException, self).__init__(  # noqa
         "Trying to add %s to fileset(%s) but already in fileset(%s)!" % (
           filename, new_tag, orig_tag))
 
@@ -189,8 +190,8 @@ class Chroot(object):
     self.root = None
     try:
       safe_mkdir(chroot_base)
-    except:
-      raise Chroot.ChrootException('Unable to create chroot in %s' % chroot_base)
+    except OSError as e:
+      raise self.ChrootException('Unable to create chroot in %s: %s' % (chroot_base, e))
     if name is not None:
       self.chroot = tempfile.mkdtemp(dir=chroot_base, prefix='%s.' % name)
     else:
@@ -203,7 +204,7 @@ class Chroot(object):
 
   def clone(self, into=None):
     into = into or tempfile.mkdtemp()
-    new_chroot = Chroot(into)
+    new_chroot = self.__class__(into)
     new_chroot.root = self.root
     for label, fileset in self.filesets.items():
       for fn in fileset:

@@ -12,10 +12,11 @@ from .crawler import Crawler
 from .http import Context
 from .interpreter import PythonInterpreter
 from .iterator import Iterator
-from .locator import PyPILocator
+from .locator import Locator, PyPILocator
 from .orderedset import OrderedSet
 from .package import distribution_compatible, Package
 from .platforms import Platform
+from .translator import Translator
 
 
 class Untranslateable(Exception):
@@ -51,15 +52,15 @@ class _DistributionCache(object):
 
 
 def resolve(
-    requirements,     # Requirement iterator (e.g. RequirementsTxt or list of strings)
-    locators=None,    # how to locate 
+    requirements,  # Requirement iterator (e.g. RequirementsTxt or list of strings)
+    locators=None,  # how to locate
     translator=None,  # package link -> distribution
-    interpreter=None, # interpreter with which to build/filter source packages
-    platform=None,    # platform with which to filter distributions
-    context=None,     # request context for network connectivity
-    threads=1,        # how many threads to use when resolving
-    package_precedence=None # ...
-    cache=None):      # fetch cache for things
+    interpreter=None,  # interpreter with which to build/filter source packages
+    platform=None,  # platform with which to filter distributions
+    context=None,  # request context for network connectivity
+    threads=1,  # how many threads to use when resolving
+    precedence=None,  # ...
+    cache=None):  # fetch cache for things
 
   """List all distributions needed to (recursively) meet `requirements`
 
@@ -79,9 +80,10 @@ def resolve(
   context = context or Context.get()
   crawler = Crawler(context, threads=threads)
   locators = locators[:] or [PyPILocator()]
+  translator = translator or Translator.default(interpreter=interpreter, platform=platform)
   if cache:
     locators.insert(0, Locator([cache]))
-  iterator = Iterator(locators=locators, crawler=crawler, package_precedence=package_precedence)
+  iterator = Iterator(locators=locators, crawler=crawler, precedence=precedence)
 
   requirements = maybe_requirement_list(requirements)
   # requirements = RequirementsTxt.wrap(requirements)
@@ -98,7 +100,7 @@ def resolve(
 
   def requires(package, requirement):
     if not distributions.has(package):
-      local_package = Package.from_filename(context.fetch(package, into=cache))
+      local_package = Package.from_href(context.fetch(package, into=cache))
       dist = translator.translate(local_package, into=cache)
       if dist is None:
         raise Untranslateable('Package %s is not translateable.' % package)
@@ -135,6 +137,6 @@ def resolve(
       break
 
   to_activate = set()
-  for distributions in distribution_set.values():
-    to_activate.add(distributions.get(distributions[0]))
+  for distribution_list in distribution_set.values():
+    to_activate.add(distributions.get(distribution_list[0]))
   return to_activate

@@ -8,7 +8,7 @@ import tempfile
 import zipfile
 from textwrap import dedent
 
-from .common import safe_mkdir, safe_mkdtemp, safe_rmtree
+from .common import safe_mkdir, safe_rmtree
 from .installer import EggInstaller
 from .util import DistributionHelper
 

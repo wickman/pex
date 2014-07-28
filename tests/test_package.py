@@ -1,17 +1,10 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import contextlib
-import os
-from zipfile import ZipFile
-
 import pytest
 from pkg_resources import parse_version, Requirement
-from twitter.common.contextutil import temporary_dir
 
-from pex.http import Web
 from pex.package import EggPackage, SourcePackage
-from pex.testing import create_layout
 
 
 def test_source_packages():
@@ -29,18 +22,6 @@ def test_source_packages():
   sl = SourcePackage('python-dateutil-1.5.tar.gz')
   assert sl.name == 'python-dateutil'
   assert sl.raw_version == '1.5'
-
-  with temporary_dir() as td:
-    dateutil_base = 'python-dateutil-1.5'
-    dateutil = '%s.zip' % dateutil_base
-    with contextlib.closing(ZipFile(os.path.join(td, dateutil), 'w')) as zf:
-      zf.writestr(os.path.join(dateutil_base, 'file1.txt'), 'junk1')
-      zf.writestr(os.path.join(dateutil_base, 'file2.txt'), 'junk2')
-    sl = SourcePackage('file://' + os.path.join(td, dateutil), opener=Web())
-    with temporary_dir() as td2:
-      sl.fetch(location=td2)
-      print(os.listdir(td2))
-      assert set(os.listdir(os.path.join(td2, dateutil_base))) == set(['file1.txt', 'file2.txt'])
 
 
 def test_egg_packages():
@@ -61,23 +42,11 @@ def test_egg_packages():
   assert el.platform is None
 
   # Eggs must have their own version and a python version.
-  with pytest.raises(EggPackage.InvalidLink):
+  with pytest.raises(EggPackage.InvalidPackage):
     EggPackage('bar.egg')
 
-  with pytest.raises(EggPackage.InvalidLink):
+  with pytest.raises(EggPackage.InvalidPackage):
     EggPackage('bar-1.egg')
 
-  with pytest.raises(EggPackage.InvalidLink):
+  with pytest.raises(EggPackage.InvalidPackage):
     EggPackage('bar-py2.6.egg')
-
-  dateutil = 'python_dateutil-1.5-py2.6.egg'
-  with create_layout([dateutil]) as td:
-    el = EggPackage('file://' + os.path.join(td, dateutil), opener=Web())
-
-    with temporary_dir() as td2:
-      # local file fetch w/o location will always remain same
-      loc1 = el.fetch()
-      assert loc1 == os.path.join(td, dateutil)
-
-      el.fetch(location=td2)
-      assert os.listdir(td2) == [dateutil]

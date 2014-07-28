@@ -32,14 +32,14 @@ class DevNull(object):
     pass
 
 
-class PEX(object):
+class PEX(object):  # noqa
   """PEX, n. A self-contained python environment."""
 
   class Error(Exception): pass
   class NotFound(Error): pass
 
-  @staticmethod
-  def start_coverage():
+  @classmethod
+  def start_coverage(cls):
     try:
       import coverage
       cov = coverage.coverage(auto_data=True, data_suffix=True,
@@ -215,7 +215,7 @@ class PEX(object):
       with self.patch_sys():
         working_set = self._env.activate()
         if 'PEX_COVERAGE' in os.environ:
-          PEX.start_coverage()
+          self.start_coverage()
         TRACER.log('PYTHONPATH contains:')
         for element in sys.path:
           TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))

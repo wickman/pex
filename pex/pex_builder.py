@@ -14,7 +14,6 @@ from .compatibility import to_bytes
 from .interpreter import PythonInterpreter
 from .marshaller import CodeMarshaller
 from .pex_info import PexInfo
-from .tracer import TRACER
 from .util import CacheHelper, DistributionHelper
 
 
@@ -67,8 +66,10 @@ class PEXBuilder(object):
 
   def clone(self, into=None):
     chroot_clone = self._chroot.clone(into=into)
-    return PEXBuilder(chroot=chroot_clone, interpreter=self._interpreter,
-                      pex_info=self._pex_info.copy())
+    return self.__class__(
+        chroot=chroot_clone,
+        interpreter=self._interpreter,
+        pex_info=self._pex_info.copy())
 
   def path(self):
     return self.chroot().path()
@@ -144,7 +145,7 @@ class PEXBuilder(object):
     if env_filename is None:
       env_filename = os.path.basename(filename)
     if self._chroot.get("executable"):
-      raise PEXBuilder.InvalidExecutableSpecification(
+      raise self.InvalidExecutableSpecification(
           "Setting executable on a PEXBuilder that already has one!")
     self._chroot.link(filename, env_filename, "executable")
     entry_point = env_filename

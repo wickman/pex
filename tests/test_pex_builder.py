@@ -3,7 +3,7 @@
 
 import os
 import zipfile
-from contextlib import closing, contextmanager
+from contextlib import closing
 
 from twitter.common.contextutil import temporary_dir
 from twitter.common.dirutil import safe_mkdir

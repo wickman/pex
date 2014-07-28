@@ -4,11 +4,10 @@
 from __future__ import absolute_import
 
 import os
-import shutil
 from abc import abstractmethod
-from uuid import uuid4
 
-from .common import chmod_plus_w, safe_mkdir, safe_mkdtemp, safe_rmtree
+from .archiver import Archiver
+from .common import safe_mkdtemp, safe_rmtree, safe_copy
 from .compatibility import AbstractClass
 from .installer import WheelInstaller
 from .interpreter import PythonInterpreter
@@ -19,19 +18,19 @@ from .util import DistributionHelper
 
 
 class TranslatorBase(AbstractClass):
-  """
-    Translate a link into a distribution.
-  """
+  """Translate a link into a distribution."""
+
   @abstractmethod
   def translate(self, link):
     pass
 
 
 class ChainedTranslator(TranslatorBase):
+  """Glue a sequence of Translators together in priority order.
+
+  The first Translator to resolve a requirement wins.
   """
-    Glue a sequence of Translators together in priority order.  The first Translator to resolve a
-    requirement wins.
-  """
+
   def __init__(self, *translators):
     self._translators = list(filter(None, translators))
     for tx in self._translators:
@@ -58,13 +57,12 @@ class SourceTranslator(TranslatorBase):
     """From a SourcePackage, translate to a binary distribution."""
     if not isinstance(package, SourcePackage):
       return None
-    
+
     if not package.local:
       raise ValueError(
           'SourceTranslator can only translate local packages.  You must fetch the package first.')
 
     installer = None
-    version = self._interpreter.version
     unpack_path = Archiver.unpack(package.path)
     into = into or safe_mkdtemp()
 
@@ -86,6 +84,9 @@ class SourceTranslator(TranslatorBase):
         if not target_package.compatible(self._interpreter.identity, platform=self._platform):
           return None
         return DistributionHelper.distribution_from_path(target_path)
+    except Exception as e:
+      print('Failed to translate %s: %s' % (package, e))
+      TRACER.log('Failed to translate %s: %s' % (package, e))
     finally:
       if installer:
         installer.cleanup()
@@ -114,7 +115,7 @@ class BinaryTranslator(TranslatorBase):
     into = into or safe_mkdtemp()
     target_path = os.path.join(into, package.filename)
     safe_copy(package.path, target_path)
-    return DistributionHelper.distribution_from_path(bdist)
+    return DistributionHelper.distribution_from_path(target_path)
 
 
 class EggTranslator(BinaryTranslator):

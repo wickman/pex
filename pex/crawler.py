@@ -1,23 +1,20 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import contextlib
 import os
 import re
 import threading
-from functools import partial
 
 from .compatibility import PY3
 from .link import Link
 from .http import Context
-from .tracer import TRACER
 
 if PY3:
   from queue import Empty, Queue
-  from urllib.parse import urlparse, urljoin
+  from urllib.parse import urlparse
 else:
   from Queue import Empty, Queue
-  from urlparse import urlparse, urljoin
+  from urlparse import urlparse
 
 
 class PageParser(object):
@@ -62,6 +59,7 @@ def crawl_local(link):
   try:
     dirents = os.listdir(link.path)
   except OSError as e:
+    # tracer XXX
     return set(), set()
   files, dirs = partition([os.path.join(link.path, fn) for fn in dirents], os.path.isdir)
   return set(map(Link.from_filename, files)), set(map(Link.from_filename, dirs))
@@ -71,6 +69,7 @@ def crawl_remote(context, link):
   try:
     content = context.read(link)
   except context.Error as e:
+    # tracer XXX
     return set(), set()
   links = set(link.join(href) for href in PageParser.links(content))
   rel_links = set(link.join(href) for href in PageParser.rel_links(content))

@@ -3,8 +3,6 @@
 
 from __future__ import absolute_import
 
-import random
-import warnings
 from abc import abstractmethod
 
 from .base import maybe_requirement
@@ -24,7 +22,7 @@ class LocatorBase(AbstractClass):
   @abstractmethod
   def urls(self, req):
     raise NotImplementedError
-  
+
 
 class Locator(LocatorBase):
   def __init__(self, urls):

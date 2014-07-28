@@ -52,9 +52,12 @@ class Link(object):
 
   def __eq__(self, link):
     return self.__class__ == link.__class__ and self._url == link._url
-  
+
   def __hash__(self):
     return hash(self._url)
+
+  def join(self, href):
+    return self.wrap(urlparse.urljoin(self.url, href))
 
   @property
   def filename(self):

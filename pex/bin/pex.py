@@ -240,7 +240,6 @@ def build_pex(args, options):
   installer = WheelInstaller if options.use_wheel else EggInstaller
 
   interpreter = interpreter_from_options(options)
-  platform = options.platform
 
   locators = [Locator(options.repos)]
 
@@ -253,16 +252,17 @@ def build_pex(args, options):
   translator = translator_from_options(options)
 
   if options.use_wheel:
-    package_precedence = (WheelPackage, EggPackage, SourcePackage)
+    precedence = (WheelPackage, EggPackage, SourcePackage)
   else:
-    package_precedence = (EggPackage, SourcePackage)
+    precedence = (EggPackage, SourcePackage)
 
   resolveds = requirement_resolver(
       options.requirements,
       locators=locators,
+      translator=translator,
       interpreter=interpreter,
       platform=options.platform,
-      package_precedence=package_precedence,
+      precedence=precedence,
       cache=options.cache_dir)
 
   if resolveds:

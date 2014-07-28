@@ -2,14 +2,12 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import zipfile
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 
 from twitter.common.contextutil import temporary_dir, temporary_file
 
 from pex.compatibility import nested
 from pex.environment import PEXEnvironment
-from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.testing import make_distribution
@@ -25,7 +23,6 @@ def yield_pex_builder(zip_safe=True):
 
 def test_force_local():
   with nested(yield_pex_builder(), temporary_dir(), temporary_file()) as (pb, pex_root, pex_file):
-    pex = pb.path()
     pb.info.pex_root = pex_root
     pb.build(pex_file.name)
 
@@ -48,7 +45,6 @@ def test_write_zipped_internal_cache():
   with nested(yield_pex_builder(zip_safe=True), temporary_dir(), temporary_file()) as (
       pb, pex_root, pex_file):
 
-    pex = pb.path()
     pb.info.pex_root = pex_root
     pb.build(pex_file.name)
 
@@ -56,7 +52,7 @@ def test_write_zipped_internal_cache():
     assert len(dists) == 1
     assert normalize(dists[0].location).startswith(
         normalize(os.path.join(pex_file.name, pb.info.internal_cache))), (
-        'loc: %s, cache: %s' % (
+            'loc: %s, cache: %s' % (
             normalize(dists[0].location),
             normalize(os.path.join(pex_file.name, pb.info.internal_cache))))
 
@@ -69,7 +65,6 @@ def test_write_zipped_internal_cache():
   with nested(yield_pex_builder(zip_safe=False), temporary_dir(), temporary_file()) as (
       pb, pex_root, pex_file):
 
-    pex = pb.path()
     pb.info.pex_root = pex_root
     pb.build(pex_file.name)
 
@@ -87,7 +82,6 @@ def test_write_zipped_internal_cache():
 def test_load_internal_cache_unzipped():
   # zip_safe pex will not be written to install cache unless always_write_cache
   with nested(yield_pex_builder(zip_safe=True), temporary_dir()) as (pb, pex_root):
-    pex = pb.path()
     pb.info.pex_root = pex_root
     pb.freeze()
 

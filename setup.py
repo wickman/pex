@@ -6,7 +6,7 @@ import os
 from setuptools import setup
 
 
-with open(os.path.join(os.path.dirname(__file__), 'CHANGES')) as fp:
+with open(os.path.join(os.path.dirname(__file__), 'CHANGES.rst')) as fp:
   LONG_DESCRIPTION = fp.read()
 
 

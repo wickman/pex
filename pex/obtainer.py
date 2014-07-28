@@ -9,8 +9,8 @@ import uuid
 
 from .base import requirement_is_exact
 from .common import safe_mkdtemp
+from .crawler import Crawler
 from .fetcher import Fetcher, PyPIFetcher
-from .http import Crawler
 from .package import EggPackage, Package, SourcePackage, WheelPackage
 from .platforms import Platform
 from .tracer import TRACER
@@ -73,7 +73,7 @@ class Obtainer(object):
     self._precedence = precedence
 
   def _translate_href(self, href):
-    package = Package.from_href(href, opener=self._crawler.opener)
+    package = Package.from_href(href)
     # Restrict this to a package found in the package precedence list, so that users of
     # obtainers can restrict which distribution formats they support.
     if any(isinstance(package, package_type) for package_type in self._precedence):

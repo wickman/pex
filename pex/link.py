@@ -37,14 +37,24 @@ class Link(object):
     raise ValueError('url_or_urls must be string/Link or iterable of strings/Links')
 
   @classmethod
+  def normalize(cls, filename):
+    return 'file://' + os.path.realpath(os.path.expanduser(filename))
+
+  @classmethod
   def from_filename(cls, filename):
-    return cls('file://' + os.path.realpath(os.path.expanduser(filename)))
+    return cls(cls.normalize(filename))
 
   def __init__(self, url):
-    self._url = urlparse.urlparse(url)
+    purl = urlparse.urlparse(url)
+    if purl.scheme == '':
+      purl = urlparse.urlparse(self.normalize(url))
+    self._url = purl
 
   def __eq__(self, link):
     return self.__class__ == link.__class__ and self._url == link._url
+  
+  def __hash__(self):
+    return hash(self._url)
 
   @property
   def filename(self):

@@ -16,7 +16,6 @@ from pex.common import safe_delete, safe_mkdtemp
 from pex.locator import Locator, PyPILocator
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
-from pex.obtainer import CachingObtainer
 from pex.package import EggPackage, SourcePackage, WheelPackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -209,48 +208,18 @@ def translator_from_options(options):
 
   translators = []
 
-  shared_options = dict(install_cache=options.cache_dir, interpreter=interpreter)
-
   if options.use_wheel:
     installer_impl = WheelInstaller
-    translators.append(WheelTranslator(platform=platform, **shared_options))
+    translators.append(WheelTranslator(platform=platform, interpreter=interpreter))
   else:
     installer_impl = EggInstaller
 
-  translators.append(EggTranslator(platform=platform, **shared_options))
+  translators.append(EggTranslator(platform=platform, interpreter=interpreter))
 
   if options.allow_builds:
-    translators.append(SourceTranslator(installer_impl=installer_impl, **shared_options))
+    translators.append(SourceTranslator(installer_impl=installer_impl, interpreter=interpreter))
 
   return ChainedTranslator(*translators)
-
-
-def build_obtainer(options):
-  interpreter = interpreter_from_options(options)
-  platform = options.platform
-
-  locators = [Locator(options.repos)]
-
-  if options.pypi:
-    locators.append(PyPILocator())
-
-  if options.indices:
-    locators.extend(PyPILocator(index) for index in options.indices)
-
-  translator = translator_from_options(options)
-
-  if options.use_wheel:
-    package_precedence = (WheelPackage, EggPackage, SourcePackage)
-  else:
-    package_precedence = (EggPackage, SourcePackage)
-
-  obtainer = CachingObtainer(
-      install_cache=options.cache_dir,
-      locators=locators,
-      translators=translator,
-      precedence=package_precedence)
-
-  return obtainer
 
 
 def build_pex(args, options):
@@ -270,11 +239,31 @@ def build_pex(args, options):
 
   installer = WheelInstaller if options.use_wheel else EggInstaller
 
+  interpreter = interpreter_from_options(options)
+  platform = options.platform
+
+  locators = [Locator(options.repos)]
+
+  if options.pypi:
+    locators.append(PyPILocator())
+
+  if options.indices:
+    locators.extend(PyPILocator(index) for index in options.indices)
+
+  translator = translator_from_options(options)
+
+  if options.use_wheel:
+    package_precedence = (WheelPackage, EggPackage, SourcePackage)
+  else:
+    package_precedence = (EggPackage, SourcePackage)
+
   resolveds = requirement_resolver(
       options.requirements,
-      obtainer=build_obtainer(options),
+      locators=locators,
       interpreter=interpreter,
-      platform=options.platform)
+      platform=options.platform,
+      package_precedence=package_precedence,
+      cache=options.cache_dir)
 
   if resolveds:
     log('Resolved distributions:', v=options.verbosity)
@@ -305,7 +294,7 @@ def main():
   options, args = parser.parse_args()
   verbosity = 5 if options.verbosity else -1
 
-  with Tracer.env_override(PEX_VERBOSE=verbosity, PEX_HTTP=verbosity):
+  with Tracer.env_override(PEX_VERBOSE=verbosity):
 
     pex_builder = build_pex(args, options)
 

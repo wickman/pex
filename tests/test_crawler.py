@@ -6,7 +6,8 @@ import os
 
 from twitter.common.contextutil import temporary_dir
 
-from pex.http.crawler import Crawler, PageParser
+from pex.crawler import Crawler, PageParser, crawl, crawl_local, crawl_remote
+from pex.link import Link
 from pex.testing import create_layout
 
 
@@ -59,6 +60,7 @@ def test_page_parser_rels():
       else:
         assert rels == []
 
+
 def test_page_parser_skips_data_rels():
   for ext in PageParser.REL_SKIP_EXTENSIONS:
     things = 'things%s' % ext
@@ -81,23 +83,23 @@ def test_crawler_local():
           pass
 
     # basic file / dir rel splitting
-    links, rels = Crawler(enable_cache=False).execute(td)
-    assert set(links) == set(os.path.join(td, fn) for fn in FL)
-    assert set(rels) == set(os.path.join(td, 'dir%d' % n) for n in (1, 2))
+    links, rels = crawl_local(Link.wrap(td))
+    assert set(links) == set(Link.wrap(os.path.join(td, fn)) for fn in FL)
+    assert set(rels) == set(Link.wrap(os.path.join(td, 'dir%d' % n)) for n in (1, 2))
 
     # recursive crawling, single vs multi-threaded
     for caching in (False, True):
       for threads in (1, 2, 3):
-        links = Crawler(enable_cache=caching, threads=threads).crawl([td], follow_links=True)
-        expect_links = (set(os.path.join(td, fn) for fn in FL) |
-                        set(os.path.join(td, 'dir1', fn) for fn in FL) |
-                        set(os.path.join(td, 'dir2', fn) for fn in FL))
+        links = Crawler(threads=threads).crawl([td], follow_links=True)
+        expect_links = (set(Link.wrap(os.path.join(td, fn)) for fn in FL) |
+                        set(Link.wrap(os.path.join(td, 'dir1', fn)) for fn in FL) |
+                        set(Link.wrap(os.path.join(td, 'dir2', fn)) for fn in FL))
         assert set(links) == expect_links
 
 
 def test_crawler_unknown_scheme():
   # skips unknown url schemes
-  Crawler(enable_cache=False).execute('ftp://ftp.cdrom.com') == (set(), set())
+  Crawler().crawl('ftp://ftp.cdrom.com') == (set(), set())
 
 
 # TODO(wickman)

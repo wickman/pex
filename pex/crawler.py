@@ -8,6 +8,7 @@ import threading
 from functools import partial
 
 from .compatibility import PY3
+from .link import Link
 from .http import Context
 from .tracer import TRACER
 
@@ -69,7 +70,7 @@ def crawl_local(link):
 def crawl_remote(context, link):
   try:
     content = context.read(link)
-  except FetchError as e:
+  except context.Error as e:
     return set(), set()
   links = set(link.join(href) for href in PageParser.links(content))
   rel_links = set(link.join(href) for href in PageParser.rel_links(content))
@@ -79,14 +80,17 @@ def crawl_remote(context, link):
 def crawl(context, link):
   if link.local:
     return crawl_local(link)
-  else:
+  elif link.remote:
     return crawl_remote(context, link)
+  else:
+    # Unknown scheme
+    return set(), set()
 
 
 class Crawler(object):
   def __init__(self, context=None, threads=1):
     self._threads = threads
-    self.context = context or DefaultContext()
+    self.context = context or Context.get()
 
   def crawl(self, link_or_links, follow_links=False):
     links, seen = set(), set()
@@ -96,7 +100,7 @@ class Crawler(object):
     def execute():
       while not converged.is_set():
         try:
-          link = queue.get(timeout=0.01)
+          link = queue.get(timeout=0.1)
         except Empty:
           continue
         if link not in seen:

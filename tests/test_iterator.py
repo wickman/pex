@@ -3,9 +3,8 @@
 
 from pkg_resources import get_build_platform, Requirement
 
-from pex.fetcher import Fetcher
 from pex.interpreter import PythonInterpreter
-from pex.obtainer import Obtainer
+from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage, WheelPackage
 
 
@@ -15,16 +14,17 @@ def test_package_precedence():
   whl = WheelPackage('psutil-0.6.1-cp26-none-macosx_10_4_x86_64.whl')
 
   # default precedence
-  assert Obtainer.package_precedence(whl) > Obtainer.package_precedence(egg)
-  assert Obtainer.package_precedence(egg) > Obtainer.package_precedence(source)
-  assert Obtainer.package_precedence(whl) > Obtainer.package_precedence(source)
+  assert Iterator.package_precedence(whl) > Iterator.package_precedence(egg)
+  assert Iterator.package_precedence(egg) > Iterator.package_precedence(source)
+  assert Iterator.package_precedence(whl) > Iterator.package_precedence(source)
 
   # overridden precedence
   PRECEDENCE = (EggPackage, WheelPackage)
-  assert Obtainer.package_precedence(source, PRECEDENCE) == (source.version, -1)  # unknown rank
-  assert Obtainer.package_precedence(whl, PRECEDENCE) > Obtainer.package_precedence(
+  assert Iterator.package_precedence(source, PRECEDENCE) == (
+      source.version, -1, True)  # unknown rank
+  assert Iterator.package_precedence(whl, PRECEDENCE) > Iterator.package_precedence(
       source, PRECEDENCE)
-  assert Obtainer.package_precedence(egg, PRECEDENCE) > Obtainer.package_precedence(
+  assert Iterator.package_precedence(egg, PRECEDENCE) > Iterator.package_precedence(
       whl, PRECEDENCE)
 
 
@@ -37,12 +37,12 @@ class FakeCrawler(object):
     return self._hrefs
 
 
-class FakeObtainer(Obtainer):
+class FakeIterator(Iterator):
   def __init__(self, links):
     self.__links = list(links)
-    super(FakeObtainer, self).__init__(FakeCrawler([]), [], [])
+    super(FakeIterator, self).__init__(crawler=FakeCrawler([]))
 
-  def _iter_unordered(self, req):
+  def _iter_unordered(self, *_, **__):
     return iter(self.__links)
 
 
@@ -55,8 +55,8 @@ def test_iter_ordering():
       get_build_platform().replace('-', '_').replace('.', '_').lower()))
   req = Requirement.parse('psutil')
 
-  assert list(FakeObtainer([tgz, egg, whl]).iter(req)) == [whl, egg, tgz]
-  assert list(FakeObtainer([egg, tgz, whl]).iter(req)) == [whl, egg, tgz]
+  assert list(FakeIterator([tgz, egg, whl]).iter(req)) == [whl, egg, tgz]
+  assert list(FakeIterator([egg, tgz, whl]).iter(req)) == [whl, egg, tgz]
 
 
 def test_href_translation():
@@ -66,7 +66,7 @@ def test_href_translation():
     return 'http://www.example.com/foo/bar/psutil-%s.tar.gz' % version
 
   fc = FakeCrawler([fake_link(v) for v in VERSIONS])
-  ob = Obtainer(fc, [], [])
+  ob = Iterator(crawler=fc)
 
   for v in VERSIONS:
     pkgs = list(ob.iter(Requirement.parse('psutil==%s' % v)))

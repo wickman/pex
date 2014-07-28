@@ -1,6 +1,9 @@
 import itertools
 
+from .crawler import Crawler
+from .locator import PyPILocator
 from .package import (
+    Package,
     EggPackage,
     SourcePackage,
     WheelPackage,

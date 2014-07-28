@@ -27,7 +27,6 @@ setup(
   packages = [
       'pex',
       'pex.bin',
-      'pex.http',
   ],
   install_requires = [
     'setuptools>=2.2',

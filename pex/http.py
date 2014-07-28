@@ -25,8 +25,8 @@ class Context(AbstractClass):
 
   @classmethod
   def register(cls, context):
-    if not isinstance(context, cls):
-      raise TypeError('Context must be a Context, got %s' % type(context))
+    #if not isinstance(context, Context):
+    #  raise TypeError('Context must be a Context, got %s' % (context.__mro__,))
     cls.REGISTRY.insert(0, context)
 
   @classmethod

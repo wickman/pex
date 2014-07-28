@@ -11,7 +11,7 @@ from pkg_resources import EGG_NAME, parse_version, safe_name
 from .archiver import Archiver
 from .base import maybe_requirement
 from .common import safe_mkdtemp
-from .http.link import Link
+from .link import Link
 from .interpreter import PythonInterpreter
 from .pep425 import PEP425, PEP425Extras
 from .platforms import Platform

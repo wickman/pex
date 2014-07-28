@@ -1,6 +1,8 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+"""
+
 import contextlib
 import errno
 import os
@@ -157,3 +159,4 @@ def test_caching(getmtime_mock):
   with contextlib.closing(web.open(URL, ttl=0.5)) as fp:
     assert fp.read() == DATA
   assert opener.opened.is_set(), 'expect expired url to cause http get'
+"""

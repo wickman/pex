@@ -58,6 +58,7 @@ def resolve(
     platform=None,    # platform with which to filter distributions
     context=None,     # request context for network connectivity
     threads=1,        # how many threads to use when resolving
+    package_precedence=None # ...
     cache=None):      # fetch cache for things
 
   """List all distributions needed to (recursively) meet `requirements`
@@ -72,13 +73,15 @@ def resolve(
 
   :returns: List of :class:`pkg_resources.Distribution` instances meeting `requirements`.
   """
-  cache = _DistributionCache()
+  distributions = _DistributionCache()
   interpreter = interpreter or PythonInterpreter.get()
   platform = platform or Platform.current()
   context = context or Context.get()
   crawler = Crawler(context, threads=threads)
-  locators = locators or [PyPILocator()]
-  iterator = Iterator(locators=locators, crawler=crawler, threads=threads)
+  locators = locators[:] or [PyPILocator()]
+  if cache:
+    locators.insert(0, Locator([cache]))
+  iterator = Iterator(locators=locators, crawler=crawler, package_precedence=package_precedence)
 
   requirements = maybe_requirement_list(requirements)
   # requirements = RequirementsTxt.wrap(requirements)
@@ -94,7 +97,7 @@ def resolve(
             and package.compatible(interpreter.identity, platform)]
 
   def requires(package, requirement):
-    if not cache.has(package):
+    if not distributions.has(package):
       local_package = Package.from_filename(context.fetch(package, into=cache))
       dist = translator.translate(local_package, into=cache)
       if dist is None:
@@ -102,8 +105,8 @@ def resolve(
       if not distribution_compatible(dist, interpreter, platform):
         raise Untranslateable('Could not get distribution for %s on appropriate platform.' %
             package)
-      cache.put(package, dist)
-    dist = cache.get(package)
+      distributions.put(package, dist)
+    dist = distributions.get(package)
     return dist.requires(extras=requirement.extras)
 
   while True:
@@ -133,5 +136,5 @@ def resolve(
 
   to_activate = set()
   for distributions in distribution_set.values():
-    to_activate.add(cache.get(distributions[0]))
+    to_activate.add(distributions.get(distributions[0]))
   return to_activate

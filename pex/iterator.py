@@ -34,10 +34,10 @@ class Iterator(object):
         cls.package_type_precedence(package, precedence=precedence),  # type preference
         package.local)  # prefer not fetching over the wire
 
-  def __init__(self, locators=None, crawler=None, precedence=DEFAULT_PACKAGE_PRECEDENCE):
+  def __init__(self, locators=None, crawler=None, precedence=None):
     self._crawler = crawler or Crawler()
     self._locators = locators or [PyPILocator()]
-    self._precedence = precedence
+    self._precedence = precedence or self.DEFAULT_PACKAGE_PRECEDENCE
 
   def _translate_href(self, href):
     package = Package.from_href(href)

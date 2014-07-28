@@ -10,6 +10,7 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
+import time
 from optparse import OptionParser
 
 from pex.common import safe_delete, safe_mkdtemp
@@ -40,6 +41,11 @@ def log(msg, v=False):
 
 def parse_bool(option, opt_str, _, parser):
   setattr(parser.values, option.dest, not opt_str.startswith('--no'))
+
+
+def increment_verbosity(option, opt_str, _, parser):
+  verbosity = getattr(parser.values, option.dest, 0)
+  setattr(parser.values, option.dest, verbosity + 1)
 
 
 def configure_clp():
@@ -179,11 +185,12 @@ def configure_clp():
            'with a setup.py.')
 
   parser.add_option(
-      '-v', '--verbosity',
+      '-v',
       dest='verbosity',
-      default=False,
-      action='store_true',
-      help='Turn on logging verbosity.')
+      default=0,
+      action='callback',
+      callback=increment_verbosity,
+      help='Turn on logging verbosity, may be specified multiple times.')
 
   return parser
 
@@ -256,6 +263,7 @@ def build_pex(args, options):
   else:
     precedence = (EggPackage, SourcePackage)
 
+  start = time.time()
   resolveds = requirement_resolver(
       options.requirements,
       locators=locators,
@@ -264,9 +272,10 @@ def build_pex(args, options):
       platform=options.platform,
       precedence=precedence,
       cache=options.cache_dir)
+  end = time.time()
 
   if resolveds:
-    log('Resolved distributions:', v=options.verbosity)
+    log('Resolved distributions in %.1fms:' % (1000.0 * (end - start)), v=options.verbosity)
 
   for pkg in resolveds:
     log('  %s' % pkg, v=options.verbosity)
@@ -292,9 +301,8 @@ def build_pex(args, options):
 def main():
   parser = configure_clp()
   options, args = parser.parse_args()
-  verbosity = 5 if options.verbosity else -1
 
-  with Tracer.env_override(PEX_VERBOSE=verbosity):
+  with Tracer.env_override(PEX_VERBOSE=options.verbosity):
 
     pex_builder = build_pex(args, options)
 

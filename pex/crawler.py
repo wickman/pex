@@ -8,6 +8,7 @@ import threading
 from .compatibility import PY3
 from .link import Link
 from .http import Context
+from .tracer import TRACER
 
 if PY3:
   from queue import Empty, Queue
@@ -59,7 +60,7 @@ def crawl_local(link):
   try:
     dirents = os.listdir(link.path)
   except OSError as e:
-    # tracer XXX
+    TRACER.log('Failed to read %s: %s' % (link.path, e), V=1)
     return set(), set()
   files, dirs = partition([os.path.join(link.path, fn) for fn in dirents], os.path.isdir)
   return set(map(Link.from_filename, files)), set(map(Link.from_filename, dirs))
@@ -69,7 +70,7 @@ def crawl_remote(context, link):
   try:
     content = context.read(link)
   except context.Error as e:
-    # tracer XXX
+    TRACER.log('Failed to read %s: %s' % (link.url, e), V=1)
     return set(), set()
   links = set(link.join(href) for href in PageParser.links(content))
   rel_links = set(link.join(href) for href in PageParser.rel_links(content))
@@ -82,7 +83,7 @@ def crawl(context, link):
   elif link.remote:
     return crawl_remote(context, link)
   else:
-    # Unknown scheme
+    TRACER.log('Failed to crawl %s: unknown scheme %s' % (link.url, link.scheme))
     return set(), set()
 
 

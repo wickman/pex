@@ -3,13 +3,15 @@
 
 import contextlib
 import functools
+import os
 import zipfile
 from hashlib import sha1
 
 from twitter.common.contextutil import temporary_file
 
+from pex.common import safe_copy
 from pex.installer import EggInstaller, WheelInstaller
-from pex.testing import make_distribution, temporary_content, write_zipfile
+from pex.testing import make_bdist, temporary_content, write_zipfile
 from pex.util import CacheHelper, DistributionHelper
 
 
@@ -57,8 +59,8 @@ def test_hash_consistency():
 
 
 def test_zipsafe():
-  make_egg = functools.partial(make_distribution, installer_impl=EggInstaller)
-  make_whl = functools.partial(make_distribution, installer_impl=WheelInstaller)
+  make_egg = functools.partial(make_bdist, installer_impl=EggInstaller)
+  make_whl = functools.partial(make_bdist, installer_impl=WheelInstaller)
 
   for zipped in (False, True):
     for zip_safe in (False, True):

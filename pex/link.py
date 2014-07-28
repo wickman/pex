@@ -72,6 +72,10 @@ class Link(object):
     return urlparse.urlunparse(self._url)
 
   @property
+  def scheme(self):
+    return self._url.scheme
+
+  @property
   def local(self):
     """Is the url a local file?"""
     return self._url.scheme in ('', 'file')

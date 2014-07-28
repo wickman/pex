@@ -7,6 +7,7 @@ import uuid
 
 from .compatibility import AbstractClass, PY3
 from .common import safe_mkdtemp, safe_open
+from .tracer import TRACER
 
 try:
   import requests
@@ -61,10 +62,11 @@ class Context(AbstractClass):
       # Assume that if the local file already exists, it is safe to use.
       return target
 
-    target_tmp = '%s.%s' % (target, uuid.uuid4())
-    with contextlib.closing(self.open(link)) as in_fp:
-      with safe_open(target_tmp, 'wb') as out_fp:
-        shutil.copyfileobj(in_fp, out_fp)
+    with TRACER.timed('Fetching %s' % link.url, V=2):
+      target_tmp = '%s.%s' % (target, uuid.uuid4())
+      with contextlib.closing(self.open(link)) as in_fp:
+        with safe_open(target_tmp, 'wb') as out_fp:
+          shutil.copyfileobj(in_fp, out_fp)
 
     os.rename(target_tmp, target)
     return target

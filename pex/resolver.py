@@ -4,10 +4,11 @@
 from __future__ import print_function
 
 from collections import defaultdict
+from functools import partial
 
 from pkg_resources import Distribution
 
-from .base import maybe_requirement_list
+from .base import maybe_requirement_list, requirement_is_exact
 from .crawler import Crawler
 from .http import Context
 from .interpreter import PythonInterpreter
@@ -16,6 +17,7 @@ from .locator import Locator, PyPILocator
 from .orderedset import OrderedSet
 from .package import distribution_compatible, Package
 from .platforms import Platform
+from .tracer import TRACER
 from .translator import Translator
 
 
@@ -51,6 +53,41 @@ class _DistributionCache(object):
     return self._translated_packages[package]
 
 
+def packages_from_requirement(
+    iterator,
+    requirement,
+    interpreter,
+    platform,
+    existing=None):
+
+  with TRACER.timed('Resolving %s' % requirement, V=2):
+    if existing is None:
+      existing = iterator.iter(requirement)
+
+    return [package for package in existing
+            if package.satisfies(requirement)
+            and package.compatible(interpreter.identity, platform)]
+
+
+# A caching wrapper around packages_from_requirement
+#
+# The algorithm works as following:
+#   - If the requirement is exact and we get a local match, short circuit and consider
+#     the package list complete.
+#   - TODO: If the requirement is not exact but the returned package mtime
+#     is below the ttl, then we allow it to be used.
+#   - If none of the above are met, fall back to iterator.
+def packages_from_requirement_cached(local_iterator, iterator, requirement, *args, **kw):
+  packages = packages_from_requirement(local_iterator, requirement, *args, **kw)
+
+  if requirement_is_exact(requirement) and packages:
+    TRACER.log('Package cache hit: %s' % requirement, V=3)
+    return packages
+
+  TRACER.log('Package cache miss: %s' % requirement, V=3)
+  return packages_from_requirement(iterator, requirement, *args, **kw)
+
+
 def resolve(
     requirements,  # Requirement iterator (e.g. RequirementsTxt or list of strings)
     locators=None,  # how to locate
@@ -79,10 +116,17 @@ def resolve(
   platform = platform or Platform.current()
   context = context or Context.get()
   crawler = Crawler(context, threads=threads)
-  locators = locators[:] or [PyPILocator()]
+  locators = locators[:] if locators is not None else [PyPILocator()]
   translator = translator or Translator.default(interpreter=interpreter, platform=platform)
+
   if cache:
-    locators.insert(0, Locator([cache]))
+    local_locator = Locator([cache])
+    locators.insert(0, local_locator)
+    local_iterator = Iterator(locators=[local_locator], crawler=crawler, precedence=precedence)
+    package_iterator = partial(packages_from_requirement_cached, local_iterator)
+  else:
+    package_iterator = packages_from_requirement
+
   iterator = Iterator(locators=locators, crawler=crawler, precedence=precedence)
 
   requirements = maybe_requirement_list(requirements)
@@ -90,13 +134,6 @@ def resolve(
   distribution_set = defaultdict(list)
   requirement_set = defaultdict(list)
   processed_requirements = set()
-
-  def packages(requirement, existing=None):
-    if existing is None:
-      existing = iterator.iter(requirement)
-    return [package for package in existing
-            if package.satisfies(requirement)
-            and package.compatible(interpreter.identity, platform)]
 
   def requires(package, requirement):
     if not distributions.has(package):
@@ -115,9 +152,11 @@ def resolve(
     while requirements:
       requirement = requirements.pop(0)
       requirement_set[requirement.key].append(requirement)
-      # TODO(wickman) This is trivially parallelizable
-      distribution_list = distribution_set[requirement.key] = packages(
+      distribution_list = distribution_set[requirement.key] = package_iterator(
+          iterator,
           requirement,
+          interpreter,
+          platform,
           existing=distribution_set.get(requirement.key))
       if not distribution_list:
         raise Unsatisfiable('Cannot satisfy requirements: %s' % requirement_set[requirement.key])

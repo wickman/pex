@@ -72,6 +72,14 @@ class Link(object):
     return urlparse.urlunparse(self._url)
 
   @property
+  def md5(self):
+    for fragment in self._url.fragment.split('&'):
+      if fragment.startswith('md5='):
+        hexdigest = fragment.split('=', 2)
+        if len(hexdigest[1]) == 32:
+          return hexdigest[1]
+
+  @property
   def scheme(self):
     return self._url.scheme
 

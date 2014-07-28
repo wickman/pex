@@ -1,5 +1,6 @@
 from abc import abstractmethod
 import contextlib
+import hashlib
 import io
 import os
 import shutil
@@ -80,9 +81,45 @@ class UrllibContext(Context):
 Context.register(UrllibContext)
 
 
-# TODO(wickman) Implement fetch using stream=True and request.raw
+class StreamFilelike(object):
+  """A file-like object wrapper for requests streams that can validate md5s."""
+
+  def __init__(self, request, link, chunk_size=16*1024):
+    self._iterator = request.iter_content(chunk_size)
+    self._bytes = b''
+    self._link = link
+    self._md5 = link.md5
+    self._hash = hashlib.md5()
+
+  def read(self, length=None):
+    while length is None or len(self._bytes) < length:
+      try:
+        next_chunk = next(self._iterator)
+        if self._md5:
+          self._hash.update(next_chunk)
+        self._bytes += next_chunk
+      except StopIteration:
+        self._validate()
+        break
+    chunk, self._bytes = self._bytes[:length], self._bytes[length:]
+    return chunk
+
+  def _validate(self):
+    if self._md5:
+      if self._md5 != self._hash.hexdigest():
+        raise Context.Error('%s failed checksum!' % (self._link.url))
+      else:
+        TRACER.log('Validated %s (md5=%s)' % (self._link.filename, self._link.md5), V=3)
+
+  def close(self):
+    pass
+
+
 class RequestsContext(Context):
-  def __init__(self, session=None):
+  """A requests-based Context."""
+
+  def __init__(self, session=None, verify=True):
+    self._verify = verify
     self._session = session or requests.session()
 
   def open(self, link):
@@ -90,7 +127,7 @@ class RequestsContext(Context):
     if link.local:
       return open(link.path, 'rb')
     try:
-      return io.BytesIO(requests.get(link.url).content)
+      return StreamFilelike(requests.get(link.url, verify=self._verify, stream=True), link)
     except requests.exceptions.RequestException as e:
       raise self.Error(e)
 
@@ -100,12 +137,14 @@ if requests:
 
 
 class CachedRequestsContext(RequestsContext):
+  """A requests-based Context with CacheControl support."""
+
   DEFAULT_CACHE = '~/.pex/cache'
 
-  def __init__(self, cache=None):
+  def __init__(self, cache=None, **kw):
     self._cache = os.path.realpath(os.path.expanduser(cache or self.DEFAULT_CACHE))
     super(CachedRequestsContext, self).__init__(
-        CacheControl(requests.session(), cache=FileCache(self._cache)))
+        CacheControl(requests.session(), cache=FileCache(self._cache)), **kw)
 
 
 if CacheControl:

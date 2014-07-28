@@ -105,7 +105,11 @@ class Crawler(object):
           continue
         if link not in seen:
           seen.add(link)
-          roots, rels = crawl(self.context, link)
+          try:
+            roots, rels = crawl(self.context, link)
+          except Exception as e:
+            TRACER.log('Unknown exception encountered: %s' % e)
+            continue
           links.update(roots)
           if follow_links:
             for rel in rels:

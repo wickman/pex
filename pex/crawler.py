@@ -59,7 +59,8 @@ def partition(L, pred):
 def crawl_local(link):
   try:
     dirents = os.listdir(link.path)
-  except OSError as e:
+  # except OSError as e:
+  except Exception as e:
     TRACER.log('Failed to read %s: %s' % (link.path, e), V=1)
     return set(), set()
   files, dirs = partition([os.path.join(link.path, fn) for fn in dirents], os.path.isdir)
@@ -69,7 +70,8 @@ def crawl_local(link):
 def crawl_remote(context, link):
   try:
     content = context.read(link)
-  except context.Error as e:
+  # except context.Error as e:
+  except Exception as e:
     TRACER.log('Failed to read %s: %s' % (link.url, e), V=1)
     return set(), set()
   links = set(link.join(href) for href in PageParser.links(content))

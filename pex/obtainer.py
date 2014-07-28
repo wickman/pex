@@ -11,6 +11,7 @@ from .base import requirement_is_exact
 from .common import safe_mkdtemp
 from .crawler import Crawler
 from .fetcher import Fetcher, PyPIFetcher
+from .http import Context
 from .package import EggPackage, Package, SourcePackage, WheelPackage
 from .platforms import Platform
 from .tracer import TRACER
@@ -60,11 +61,14 @@ class Obtainer(object):
   def package_precedence(cls, package, precedence=DEFAULT_PACKAGE_PRECEDENCE):
     return (package.version, cls.package_type_precedence(package, precedence=precedence))
 
-  def __init__(self, crawler=None,
+  def __init__(self, context=None,
                      fetchers=None,
                      translators=None,
-                     precedence=DEFAULT_PACKAGE_PRECEDENCE):
-    self._crawler = crawler or Crawler()
+                     precedence=DEFAULT_PACKAGE_PRECEDENCE,
+                     cache=None):
+    self._cache = cache or safe_mkdtemp()
+    self._context = context or Context.get()
+    self._crawler = Crawler(self._context)
     self._fetchers = fetchers or [PyPIFetcher()]
     if isinstance(translators, (list, tuple)):
       self._translator = ChainedTranslator(*translators)
@@ -91,6 +95,9 @@ class Obtainer(object):
 
   def _translate_from(self, obtain_set):
     for package in obtain_set:
+      if not package.local:
+        new_path = self._context.fetch(package, into=self._cache)
+        package = Package.from_href(new_path)
       dist = self._translator.translate(package)
       if dist:
         return dist
@@ -111,11 +118,10 @@ class Obtainer(object):
 class CachingObtainer(Obtainer):
   def __init__(self, *args, **kw):
     self.__ttl = kw.pop('ttl', 3600)
-    self.__install_cache = kw.pop('install_cache', None) or safe_mkdtemp()
     super(CachingObtainer, self).__init__(*args, **kw)
     self.__cache_obtainer = Obtainer(
-        crawler=self._crawler,
-        fetchers=[Fetcher([self.__install_cache])],
+        context=self._context,
+        fetchers=[Fetcher([self._cache])],
         translators=self._translator,
         precedence=self._precedence,
     )
@@ -123,10 +129,6 @@ class CachingObtainer(Obtainer):
   @property
   def ttl(self):
     return self.__ttl
-
-  @property
-  def install_cache(self):
-    return self.__install_cache
 
   def _has_expired_ttl(self, dist):
     now = time.time()
@@ -136,7 +138,7 @@ class CachingObtainer(Obtainer):
     return requirement_is_exact(requirement) or not self._has_expired_ttl(dist)
 
   def _set_cached_dist(self, dist):
-    target_location = os.path.join(self.__install_cache, os.path.basename(dist.location))
+    target_location = os.path.join(self._cache, os.path.basename(dist.location))
     if os.path.exists(target_location):
       return
     target_tmp = target_location + uuid.uuid4().get_hex()

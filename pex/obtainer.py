@@ -19,25 +19,8 @@ from .translator import ChainedTranslator, Translator
 
 
 class Obtainer(object):
-  """
-    A requirement obtainer.
+  """A requirement obtainer."""
 
-    An Obtainer takes a Crawler, a list of Fetchers (which take requirements
-    and tells us where to look for them) and a list of Translators (which
-    translate egg or source packages into usable distributions) and turns them
-    into a cohesive requirement pipeline.
-
-    >>> from pex.http import Crawler
-    >>> from pex.obtainer import Obtainer
-    >>> from pex.fetcher import PyPIFetcher
-    >>> from pex.resolver import Resolver
-    >>> from pex.translator import Translator
-    >>> obtainer = Obtainer(Crawler(), [PyPIFetcher()], [Translator.default()])
-    >>> resolver = Resolver(obtainer)
-    >>> distributions = resolver.resolve(['ansicolors', 'elementtree', 'mako', 'markdown', 'psutil',
-    ...                                   'pygments', 'pylint', 'pytest'])
-    >>> for d in distributions: d.activate()
-  """
   DEFAULT_PACKAGE_PRECEDENCE = (
       WheelPackage,
       EggPackage,

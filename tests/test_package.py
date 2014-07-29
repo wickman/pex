@@ -10,7 +10,6 @@ from pkg_resources import parse_version, Requirement
 from twitter.common.contextutil import temporary_dir
 
 from pex.package import EggPackage, SourcePackage
-from pex.testing import create_layout
 
 
 def test_source_packages():

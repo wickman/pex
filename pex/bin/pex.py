@@ -10,13 +10,13 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
+import time
 from optparse import OptionParser
 
 from pex.common import safe_delete, safe_mkdtemp
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.installer import EggInstaller, WheelInstaller
 from pex.interpreter import PythonInterpreter
-from pex.obtainer import CachingObtainer
 from pex.package import EggPackage, SourcePackage, WheelPackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -41,6 +41,11 @@ def log(msg, v=False):
 
 def parse_bool(option, opt_str, _, parser):
   setattr(parser.values, option.dest, not opt_str.startswith('--no'))
+
+
+def increment_verbosity(option, opt_str, _, parser):
+  verbosity = getattr(parser.values, option.dest, 0)
+  setattr(parser.values, option.dest, verbosity + 1)
 
 
 def configure_clp():
@@ -180,11 +185,12 @@ def configure_clp():
            'with a setup.py.')
 
   parser.add_option(
-      '-v', '--verbosity',
+      '-v',
       dest='verbosity',
-      default=False,
-      action='store_true',
-      help='Turn on logging verbosity.')
+      default=0,
+      action='callback',
+      callback=increment_verbosity,
+      help='Turn on logging verbosity, may be specified multiple times.')
 
   return parser
 
@@ -209,48 +215,18 @@ def translator_from_options(options):
 
   translators = []
 
-  shared_options = dict(install_cache=options.cache_dir, interpreter=interpreter)
-
   if options.use_wheel:
     installer_impl = WheelInstaller
-    translators.append(WheelTranslator(platform=platform, **shared_options))
+    translators.append(WheelTranslator(platform=platform, interpreter=interpreter))
   else:
     installer_impl = EggInstaller
 
-  translators.append(EggTranslator(platform=platform, **shared_options))
+  translators.append(EggTranslator(platform=platform, interpreter=interpreter))
 
   if options.allow_builds:
-    translators.append(SourceTranslator(installer_impl=installer_impl, **shared_options))
+    translators.append(SourceTranslator(installer_impl=installer_impl, interpreter=interpreter))
 
   return ChainedTranslator(*translators)
-
-
-def build_obtainer(options):
-  interpreter = interpreter_from_options(options)
-  platform = options.platform
-
-  fetchers = [Fetcher(options.repos)]
-
-  if options.pypi:
-    fetchers.append(PyPIFetcher())
-
-  if options.indices:
-    fetchers.extend(PyPIFetcher(index) for index in options.indices)
-
-  translator = translator_from_options(options)
-
-  if options.use_wheel:
-    package_precedence = (WheelPackage, EggPackage, SourcePackage)
-  else:
-    package_precedence = (EggPackage, SourcePackage)
-
-  obtainer = CachingObtainer(
-      fetchers=fetchers,
-      translators=translator,
-      precedence=package_precedence,
-      cache=options.cache_dir)
-
-  return obtainer
 
 
 def build_pex(args, options):
@@ -270,14 +246,36 @@ def build_pex(args, options):
 
   installer = WheelInstaller if options.use_wheel else EggInstaller
 
+  interpreter = interpreter_from_options(options)
+
+  fetchers = [Fetcher(options.repos)]
+
+  if options.pypi:
+    fetchers.append(PyPIFetcher())
+
+  if options.indices:
+    fetchers.extend(PyPIFetcher(index) for index in options.indices)
+
+  translator = translator_from_options(options)
+
+  if options.use_wheel:
+    precedence = (WheelPackage, EggPackage, SourcePackage)
+  else:
+    precedence = (EggPackage, SourcePackage)
+
+  start = time.time()
   resolveds = requirement_resolver(
       options.requirements,
-      obtainer=build_obtainer(options),
+      fetchers=fetchers,
+      translator=translator,
       interpreter=interpreter,
-      platform=options.platform)
+      platform=options.platform,
+      precedence=precedence,
+      cache=options.cache_dir)
+  end = time.time()
 
   if resolveds:
-    log('Resolved distributions:', v=options.verbosity)
+    log('Resolved distributions in %.1fms:' % (1000.0 * (end - start)), v=options.verbosity)
 
   for pkg in resolveds:
     log('  %s' % pkg, v=options.verbosity)
@@ -303,9 +301,8 @@ def build_pex(args, options):
 def main():
   parser = configure_clp()
   options, args = parser.parse_args()
-  verbosity = 5 if options.verbosity else -1
 
-  with Tracer.env_override(PEX_VERBOSE=verbosity, PEX_HTTP=verbosity):
+  with Tracer.env_override(PEX_VERBOSE=options.verbosity):
 
     pex_builder = build_pex(args, options)
 

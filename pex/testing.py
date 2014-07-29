@@ -5,11 +5,14 @@ import contextlib
 import os
 import random
 import tempfile
+import subprocess
 import zipfile
 from textwrap import dedent
 
 from .common import safe_mkdir, safe_rmtree
+from .compatibility import nested
 from .installer import EggInstaller, Packager
+from .pex_builder import PEXBuilder
 from .util import DistributionHelper
 
 
@@ -106,3 +109,33 @@ def make_bdist(name='my_project', installer_impl=EggInstaller, zipped=False, zip
         with contextlib.closing(zipfile.ZipFile(dist_location)) as zf:
           zf.extractall(extract_path)
         yield DistributionHelper.distribution_from_path(extract_path)
+
+
+def write_simple_pex(td, exe_contents, dists=None):
+  dists = dists or []
+
+  with open(os.path.join(td, 'exe.py'), 'w') as fp:
+    fp.write(exe_contents)
+
+  pb = PEXBuilder(path=td)
+  for dist in dists:
+    pb.add_egg(dist.location)
+  pb.set_executable(os.path.join(td, 'exe.py'))
+  pb.freeze()
+
+  return pb
+
+
+# TODO(wickman) Why not PEX.run?
+def run_simple_pex(pex, env=None):
+  po = subprocess.Popen(pex, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
+  po.wait()
+  return po.stdout.read(), po.returncode
+
+
+def run_simple_pex_test(body, env=None):
+  with nested(temporary_dir(), temporary_dir()) as (td1, td2):
+    pb = write_simple_pex(td1, body)
+    pex = os.path.join(td2, 'app.pex')
+    pb.build(pex)
+    return run_simple_pex(pex, env=env)

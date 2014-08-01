@@ -111,15 +111,27 @@ def make_bdist(name='my_project', installer_impl=EggInstaller, zipped=False, zip
         yield DistributionHelper.distribution_from_path(extract_path)
 
 
-def write_simple_pex(td, exe_contents, dists=None):
+COVERAGE_PREAMBLE = """
+try:
+  from coverage import coverage
+  cov = coverage(auto_data=True, data_suffix=True)
+  cov.start()
+except ImportError:
+  pass
+"""
+
+
+def write_simple_pex(td, exe_contents, dists=None, coverage=False):
   dists = dists or []
 
   with open(os.path.join(td, 'exe.py'), 'w') as fp:
     fp.write(exe_contents)
 
-  pb = PEXBuilder(path=td)
+  pb = PEXBuilder(path=td, preamble=COVERAGE_PREAMBLE if coverage else None)
+
   for dist in dists:
     pb.add_egg(dist.location)
+
   pb.set_executable(os.path.join(td, 'exe.py'))
   pb.freeze()
 
@@ -128,14 +140,42 @@ def write_simple_pex(td, exe_contents, dists=None):
 
 # TODO(wickman) Why not PEX.run?
 def run_simple_pex(pex, env=None):
+  import os
+  print('XXXXXXXXXXX: %s' % os.getcwd())
   po = subprocess.Popen(pex, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
   po.wait()
   return po.stdout.read(), po.returncode
 
 
-def run_simple_pex_test(body, env=None):
+def run_simple_pex_test(body, env=None, dists=None, coverage=False):
   with nested(temporary_dir(), temporary_dir()) as (td1, td2):
-    pb = write_simple_pex(td1, body)
+    pb = write_simple_pex(td1, body, dists=dists, coverage=coverage)
     pex = os.path.join(td2, 'app.pex')
     pb.build(pex)
     return run_simple_pex(pex, env=env)
+
+
+def _iter_filter(data_dict):
+  fragment = '/%s/_pex/' % PEXBuilder.BOOTSTRAP_DIR
+  for filename, records in data_dict.items():
+    try:
+      bi = filename.index(fragment)
+    except ValueError:
+      continue
+    # rewrite to look like root source
+    yield ('pex/' + filename[bi + len():], records)
+
+
+def combine_pex_coverage(coverage_file_iter):
+  from coverage.data import CoverageData
+
+  combined = CoverageData(basename='.coverage_combined')
+
+  for filename in coverage_file_iter:
+    cov = CoverageData(basename=filename)
+    cov.read()
+    combined.add_line_data(dict(_iter_filter(cov.line_data())))
+    combined.add_arc_data(dict(_iter_filter(cov.arc_data())))
+
+  combined.write()
+  return combined.filename

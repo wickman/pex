@@ -22,7 +22,7 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
-from pex.tracer import Tracer
+from pex.tracer import Tracer, TRACER
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 
 CANNOT_PARSE_REQUIREMENT = 100
@@ -135,6 +135,13 @@ def configure_clp():
       default=os.path.expanduser('~/.pex/build'),
       help='The local cache directory to use for speeding up requirement '
            'lookups; [Default: %default]')
+
+  parser.add_option(
+      '--cache-ttl',
+      dest='cache_ttl',
+      type=int,
+      default=None,
+      help='The cache TTL to use for inexact requirement specifications.')
 
   parser.add_option(
       '-o', '-p', '--output-file', '--pex-name',
@@ -263,19 +270,16 @@ def build_pex(args, options):
   else:
     precedence = (EggPackage, SourcePackage)
 
-  start = time.time()
-  resolveds = requirement_resolver(
-      options.requirements,
-      fetchers=fetchers,
-      translator=translator,
-      interpreter=interpreter,
-      platform=options.platform,
-      precedence=precedence,
-      cache=options.cache_dir)
-  end = time.time()
-
-  if resolveds:
-    log('Resolved distributions in %.1fms:' % (1000.0 * (end - start)), v=options.verbosity)
+  with TRACER.timed('Resolving distributions'):
+    resolveds = requirement_resolver(
+        options.requirements,
+        fetchers=fetchers,
+        translator=translator,
+        interpreter=interpreter,
+        platform=options.platform,
+        precedence=precedence,
+        cache=options.cache_dir,
+        cache_ttl=options.cache_ttl)
 
   for pkg in resolveds:
     log('  %s' % pkg, v=options.verbosity)

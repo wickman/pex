@@ -5,7 +5,7 @@ import os
 
 from twitter.common.contextutil import temporary_dir
 
-from pex.crawler import Crawler, PageParser, crawl_local
+from pex.crawler import Crawler, PageParser
 from pex.link import Link
 
 
@@ -81,7 +81,7 @@ def test_crawler_local():
           pass
 
     # basic file / dir rel splitting
-    links, rels = crawl_local(Link.wrap(td))
+    links, rels = Crawler.crawl_local(Link.wrap(td))
     assert set(links) == set(Link.wrap(os.path.join(td, fn)) for fn in FL)
     assert set(rels) == set(Link.wrap(os.path.join(td, 'dir%d' % n)) for n in (1, 2))
 

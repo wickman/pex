@@ -140,8 +140,6 @@ def write_simple_pex(td, exe_contents, dists=None, coverage=False):
 
 # TODO(wickman) Why not PEX.run?
 def run_simple_pex(pex, env=None):
-  import os
-  print('XXXXXXXXXXX: %s' % os.getcwd())
   po = subprocess.Popen(pex, shell=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env)
   po.wait()
   return po.stdout.read(), po.returncode

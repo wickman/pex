@@ -1,5 +1,7 @@
 PEX
 ===
+.. image:: https://travis-ci.org/pantsbuild/pex.svg?branch=master
+    :target: https://travis-ci.org/pantsbuild/pex
 
 pex is both a library and tool for generating .pex (Python EXecutable) files,
 standalone Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_.
@@ -25,3 +27,12 @@ Documentation
 
 Documentation about pex, building .pex files, and how .pex files work is
 available at http://pex.rtfd.org.
+
+Hacking
+=======
+
+To run tests, install tox and::
+
+    $ tox
+
+To contribute, follow these instructions: http://pantsbuild.github.io/howto_contribute.html

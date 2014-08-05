@@ -1,11 +1,11 @@
 import os
 
+from twitter.common.contextutil import temporary_dir
+
 from pex.common import safe_copy
 from pex.fetcher import Fetcher
 from pex.resolver import resolve
 from pex.testing import make_sdist
-
-from twitter.common.contextutil import temporary_dir
 
 
 def test_thats_it_thats_the_test():

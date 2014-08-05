@@ -4,12 +4,10 @@
 from __future__ import absolute_import
 
 import os
-import shutil
 from abc import abstractmethod
-from uuid import uuid4
 
 from .archiver import Archiver
-from .common import chmod_plus_w, safe_mkdir, safe_mkdtemp, safe_rmtree, safe_copy
+from .common import chmod_plus_w, safe_copy, safe_mkdtemp, safe_rmtree
 from .compatibility import AbstractClass
 from .installer import WheelInstaller
 from .interpreter import PythonInterpreter

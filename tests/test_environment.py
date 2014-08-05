@@ -2,14 +2,12 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import zipfile
-from contextlib import closing, contextmanager
+from contextlib import contextmanager
 
 from twitter.common.contextutil import temporary_dir, temporary_file
 
 from pex.compatibility import nested
 from pex.environment import PEXEnvironment
-from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.pex_info import PexInfo
 from pex.testing import make_bdist

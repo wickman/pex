@@ -2,12 +2,7 @@ import itertools
 
 from .crawler import Crawler
 from .fetcher import PyPIFetcher
-from .package import (
-    Package,
-    EggPackage,
-    SourcePackage,
-    WheelPackage,
-)
+from .package import EggPackage, Package, SourcePackage, WheelPackage
 
 
 class Iterator(object):

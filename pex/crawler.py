@@ -6,8 +6,8 @@ import re
 import threading
 
 from .compatibility import PY3
-from .link import Link
 from .http import Context
+from .link import Link
 from .tracer import TRACER
 
 if PY3:
@@ -56,40 +56,40 @@ def partition(L, pred):
   return filter(lambda v: not pred(v), L), filter(lambda v: pred(v), L)
 
 
-def crawl_local(link):
-  try:
-    dirents = os.listdir(link.path)
-  # except OSError as e:
-  except Exception as e:
-    TRACER.log('Failed to read %s: %s' % (link.path, e), V=1)
-    return set(), set()
-  files, dirs = partition([os.path.join(link.path, fn) for fn in dirents], os.path.isdir)
-  return set(map(Link.from_filename, files)), set(map(Link.from_filename, dirs))
-
-
-def crawl_remote(context, link):
-  try:
-    content = context.read(link)
-  # except context.Error as e:
-  except Exception as e:
-    TRACER.log('Failed to read %s: %s' % (link.url, e), V=1)
-    return set(), set()
-  links = set(link.join(href) for href in PageParser.links(content))
-  rel_links = set(link.join(href) for href in PageParser.rel_links(content))
-  return links, rel_links
-
-
-def crawl(context, link):
-  if link.local:
-    return crawl_local(link)
-  elif link.remote:
-    return crawl_remote(context, link)
-  else:
-    TRACER.log('Failed to crawl %s: unknown scheme %s' % (link.url, link.scheme))
-    return set(), set()
-
-
 class Crawler(object):
+  @classmethod
+  def crawl_local(cls, link):
+    try:
+      dirents = os.listdir(link.path)
+    # except OSError as e:
+    except Exception as e:
+      TRACER.log('Failed to read %s: %s' % (link.path, e), V=1)
+      return set(), set()
+    files, dirs = partition([os.path.join(link.path, fn) for fn in dirents], os.path.isdir)
+    return set(map(Link.from_filename, files)), set(map(Link.from_filename, dirs))
+
+  @classmethod
+  def crawl_remote(cls, context, link):
+    try:
+      content = context.read(link)
+    # except context.Error as e:
+    except Exception as e:
+      TRACER.log('Failed to read %s: %s' % (link.url, e), V=1)
+      return set(), set()
+    links = set(link.join(href) for href in PageParser.links(content))
+    rel_links = set(link.join(href) for href in PageParser.rel_links(content))
+    return links, rel_links
+
+  @classmethod
+  def crawl_link(cls, context, link):
+    if link.local:
+      return cls.crawl_local(link)
+    elif link.remote:
+      return cls.crawl_remote(context, link)
+    else:
+      TRACER.log('Failed to crawl %s: unknown scheme %s' % (link.url, link.scheme))
+      return set(), set()
+
   def __init__(self, context=None, threads=1):
     self._threads = threads
     self.context = context or Context.get()
@@ -108,7 +108,7 @@ class Crawler(object):
         if link not in seen:
           seen.add(link)
           try:
-            roots, rels = crawl(self.context, link)
+            roots, rels = self.crawl_link(self.context, link)
           except Exception as e:
             TRACER.log('Unknown exception encountered: %s' % e)
             continue

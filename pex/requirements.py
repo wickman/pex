@@ -1,11 +1,12 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+from abc import abstractmethod
 from collections import Iterable
 
 from pkg_resources import Requirement, safe_name
 
-from .compatibility import string as compatibility_string
+from .compatibility import AbstractClass, string as compatibility_string
 
 
 def maybe_requirement(req):
@@ -170,25 +171,26 @@ class RequirementsTxt(object):
       raise cls.UnsupportedLine('Editable distributions not supported: %s' % line)
     elif cls._startswith_any(line, ('-i ', '--index-url ', '--extra-index-url ')):
       requirements.add_index(cls._get_parameter(line))
-      continue
+      return
     elif cls._startswith_any(line, ('-f ', '--find-links ')):
       requirements.add_repo(cls._get_parameter(line))
-      continue
+      return
     elif line.startswith('--allow-external '):
       requirements.allow_external(cls._get_parameter(line))
-      continue
+      return
     elif line.startswith('--allow-all-external'):
       requirements.allow_all_external()
-      continue
+      return
     elif line.startswith('--allow-unverified '):
       TRACER.log('--allow-unverified is ignored by PEX.')
-      continue
+      return
     elif line.startswith('--no-index'):
       requirements.clear_indices()
-      continue
+      return
     elif cls._startswith_any(line, ('-r ', '--requirement')):
       # TODO(wickman) Should this be relativized?
       cls.from_file(cls._get_parameter(line), requirements=requirements)
+      return
     else:
       requirements.add(Resolvable.get(line))
 

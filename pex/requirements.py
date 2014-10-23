@@ -1,12 +1,15 @@
 # Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-from abc import abstractmethod
+from abc import abstractmethod, abstractproperty
 from collections import Iterable
 
 from pkg_resources import Requirement, safe_name
 
 from .compatibility import AbstractClass, string as compatibility_string
+from .iterator import Iterator
+from .fetcher import Fetcher, PyPIFetcher
+from .package import Package
 
 
 def maybe_requirement(req):
@@ -71,6 +74,10 @@ class Resolvable(AbstractClass):
     :returns: An iterable of compatible :class:`Package` objects.
     """
 
+  @abstractproperty
+  def name(self):
+    pass
+
 
 class ResolvableRepository(Resolvable):
   # A 'git+', 'svn+', 'hg+', 'bzr+' project.  Not supported.
@@ -79,7 +86,7 @@ class ResolvableRepository(Resolvable):
 
   @classmethod
   def from_string(cls, requirement_string):
-    if any(requirement_string.startswith('%s+' % vcs for vcs in cls.COMPATIBLE_CVS)):
+    if any(requirement_string.startswith('%s+' % vcs) for vcs in cls.COMPATIBLE_VCS):
       # further delegate
       pass
 
@@ -87,6 +94,10 @@ class ResolvableRepository(Resolvable):
 
   def packages(self, finder):
     return []
+
+  @property
+  def name(self):
+    raise NotImplemented
 
 
 class ResolvablePackage(Resolvable):
@@ -103,6 +114,10 @@ class ResolvablePackage(Resolvable):
 
   def packages(self, finder):
     return self.package
+
+  @property
+  def name(self):
+    return self.package.name
 
 
 class ResolvableRequirement(Resolvable):
@@ -134,6 +149,10 @@ class ResolvableRequirement(Resolvable):
     return [package for package in iterator.iter(self.requirement, follow_links=self._follow_links)
         if package.satisfies(requirement)]
 
+  @property
+  def name(self):
+    return self.requirement.key
+
 
 Resolvable.register(ResolvableRepository)
 Resolvable.register(ResolvablePackage)
@@ -152,12 +171,9 @@ class RequirementsTxt(object):
 
   @classmethod
   def _get_parameter(cls, line):
-    if line.startswith('--'):
-      sline = line.split('=')
-    elif line.startswith('-'):
+    sline = line.split('=')
+    if len(sline) != 2:
       sline = line.split()
-    else:
-      raise cls.UnsupportedLine('Unrecognized line format: %s' % line)
     if len(sline) != 2:
       raise cls.UnsupportedLine('Unrecognized line format: %s' % line)
     return sline[1]
@@ -165,23 +181,23 @@ class RequirementsTxt(object):
   @classmethod
   def _process_one_line(cls, requirements, line):
     line = line.strip()
-    if line.startswith('#'):
+    if not line or line.startswith('#'):
       return
     elif line.startswith('-e '):
       raise cls.UnsupportedLine('Editable distributions not supported: %s' % line)
-    elif cls._startswith_any(line, ('-i ', '--index-url ', '--extra-index-url ')):
+    elif cls._startswith_any(line, ('-i ', '--index-url', '--extra-index-url')):
       requirements.add_index(cls._get_parameter(line))
       return
-    elif cls._startswith_any(line, ('-f ', '--find-links ')):
+    elif cls._startswith_any(line, ('-f ', '--find-links')):
       requirements.add_repo(cls._get_parameter(line))
       return
-    elif line.startswith('--allow-external '):
+    elif line.startswith('--allow-external'):
       requirements.allow_external(cls._get_parameter(line))
       return
     elif line.startswith('--allow-all-external'):
       requirements.allow_all_external()
       return
-    elif line.startswith('--allow-unverified '):
+    elif line.startswith('--allow-unverified'):
       TRACER.log('--allow-unverified is ignored by PEX.')
       return
     elif line.startswith('--no-index'):

@@ -134,7 +134,7 @@ def resolve(
   :keyword precedence: (optional) An ordered list of allowable :class:`Package` classes
     to be used for producing distributions.  For example, if precedence is supplied as
     ``(WheelPackage, SourcePackage)``, wheels will be preferred over building from source, and
-    eggs will not be used at all.  If ``(WheelPackage, EggPackage)`` is suppplied, both wheels and
+    eggs will not be used at all.  If ``(WheelPackage, EggPackage)`` is supplied, both wheels and
     eggs will be used, but the resolver will not resort to building anything from source.
   :keyword cache: (optional) A directory to use to cache distributions locally.
   :keyword cache_ttl: (optional integer in seconds) If specified, consider non-exact matches when

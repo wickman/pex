@@ -114,10 +114,10 @@ class PEX(object):
         continue
 
       # Pop off site-impacting __path__ elements in-place.
-      for k in range(len(module.__path__), 0, -1):
-        if any(module.__path__[k - 1].startswith(site_lib) for site_lib in site_libs):
-          TRACER.log('Scrubbing %s.__path__: %s' % (module_name, module.__path__[k - 1]), V=3)
-          module.__path__.pop(k - 1)
+      for k in reversed(range(len(module.__path__))):
+        if any(module.__path__[k].startswith(site_lib) for site_lib in site_libs):
+          TRACER.log('Scrubbing %s.__path__: %s' % (module_name, module.__path__[k]), V=3)
+          module.__path__.pop(k)
 
       # It still contains path elements not in site packages, so it can stay in sys.modules
       if module.__path__:

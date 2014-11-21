@@ -106,14 +106,26 @@ class PEX(object):
 
   @classmethod
   def _tainted_path(cls, path, site_libs):
-    paths = (path, os.path.realpath(path))
+    paths = frozenset([path, os.path.realpath(path)])
     return any(path.startswith(site_lib) for site_lib in site_libs for path in paths)
 
   @classmethod
-  def minimum_sys_modules(cls, site_libs):
+  def minimum_sys_modules(cls, site_libs, modules=None):
+    """Given a set of site-packages paths, return a "clean" sys.modules.
+
+    When importing site, modules within sys.modules have their __path__'s populated with
+    additional paths as defined by *-nspkg.pth in site-packages, or alternately by distribution
+    metadata such as *.dist-info/namespace_packages.txt.  This can possibly cause namespace
+    packages to leak into imports despite being scrubbed from sys.path.
+
+    NOTE: This method mutates modules' __path__ attributes in sys.module, so this is currently an
+    irreversible operation.
+    """
+
+    modules = modules or sys.modules
     new_modules = {}
 
-    for module_name, module in sys.modules.items():
+    for module_name, module in modules.items():
       # builtins can stay
       if not hasattr(module, '__path__'):
         new_modules[module_name] = module

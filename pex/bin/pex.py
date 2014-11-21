@@ -285,7 +285,6 @@ def build_pex(args, options):
       requirements.append('%s==%s' % (sdist_pkg.name, sdist_pkg.raw_version))
 
       # copy the source distribution
-      print('POOPING')
       shutil.copyfile(sdist, os.path.join(temporary_package_root, os.path.basename(sdist)))
 
     # Tell pex where to find the packages

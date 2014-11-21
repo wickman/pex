@@ -101,15 +101,20 @@ class PEX(object):
       site_libs = set()
     site_libs.update([sysconfig.get_python_lib(plat_specific=False),
                       sysconfig.get_python_lib(plat_specific=True)])
-    return site_libs
+    real_site_libs = set(os.path.realpath(path) for path in site_libs)
+    return site_libs | real_site_libs
+
+  @classmethod
+  def _tainted_path(cls, path, site_libs):
+    paths = (path, os.path.realpath(path))
+    return any(path.startswith(site_lib) for site_lib in site_libs for path in paths)
 
   @classmethod
   def minimum_sys_modules(cls, site_libs):
     new_modules = {}
 
     for module_name, module in sys.modules.items():
-      if any(path.startswith(site_lib) for path in getattr(module, '__path__', ())
-          for site_lib in site_libs):
+      if any(cls._tainted_path(path, site_libs) for path in getattr(module, '__path__', ())):
         TRACER.log('Scrubbing %s from sys.modules' % module)
       else:
         new_modules[module_name] = module
@@ -119,12 +124,20 @@ class PEX(object):
   @classmethod
   def minimum_sys_path(cls, site_libs):
     site_distributions = OrderedSet()
-    for path_element in sys.path:
-      if any(path_element.startswith(site_lib) for site_lib in site_libs):
-        TRACER.log('Inspecting path element: %s' % path_element, V=2)
-        site_distributions.update(dist.location for dist in find_distributions(path_element))
+    user_site_distributions = OrderedSet()
 
-    user_site_distributions = OrderedSet(dist.location for dist in find_distributions(USER_SITE))
+    def all_distribution_paths(path):
+      locations = set(dist.location for dist in find_distributions(path))
+      return set([path]) | locations | set(os.path.realpath(path) for path in locations)
+
+    for path_element in sys.path:
+      if cls._tainted_path(path_element, site_libs):
+        TRACER.log('Inspecting path element: %s' % path_element, V=2)
+        site_distributions.update(all_distribution_paths(path_element))
+      else:
+        TRACER.log('Not a tained path element: %s' % path_element, V=2)
+
+    user_site_distributions.update(all_distribution_paths(USER_SITE))
 
     for path in site_distributions:
       TRACER.log('Scrubbing from site-packages: %s' % path)

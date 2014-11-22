@@ -26,6 +26,8 @@ from pex.tracer import TRACER, Tracer
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 from pex.version import __version__
 
+CANNOT_DISTILL = 101
+
 
 def die(msg, error_code=1):
   print(msg, file=sys.stderr)

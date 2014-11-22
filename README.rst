@@ -3,10 +3,14 @@ PEX
 .. image:: https://travis-ci.org/pantsbuild/pex.svg?branch=master
     :target: https://travis-ci.org/pantsbuild/pex
 
-pex is both a library and tool for generating .pex (Python EXecutable) files,
-standalone Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_.
+pex is a library for generating .pex (Python EXecutable) files,
+executable Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_.
 They are designed to make deployment of Python applications as simple as ``cp``.
 pex is licensed under the Apache2 license.
+
+.pex files can be built using the ``pex`` tool bundled with pex.  Build systems such as `Pants
+<http://pantsbuild.github.io/>`_ and `Buck <http://facebook.github.io/buck/>`_ also
+support building .pex files directly.
 
 
 Installation
@@ -18,65 +22,58 @@ To install pex, simply
 
     $ pip install pex
 
-Alternately, .pex files can be generated directly by build systems such as `Pants
-<http://pantsbuild.github.io/>`_ and `Buck <http://facebook.github.io/buck/>`_
+You can also "install" pex by using pex to build itself in a git clone using tox:
+
+.. code-block:: bash
+
+    $ tox -e package
+
+This will build a pex binary in ``dist/pex`` that can be copied onto your ``$PATH``.
 
 
 Documentation
 =============
 
-Documentation about pex, building .pex files, and how .pex files work is
-available at http://pex.rtfd.org.
+More documentation about pex, building .pex files, and how .pex files work
+is available at http://pex.rtfd.org.
 
-Hacking
-=======
 
-To run tests, install tox and:
+Development
+===========
+
+pex uses `tox <https://testrun.org/tox/latest/>`_ for test and development automation.  To run
+the test suite, just invoke tox:
 
 .. code-block:: bash
 
     $ tox
 
-Run full 2.x/3.x test coverage and generate report into 'htmlcov':
+To generate a coverage report (with more substantial integration tests):
 
 .. code-block:: bash
 
-   $ tox -e py2-integration,py3-integration,combine
+   $ tox -e coverage
 
-Run style checker against the predominant PEX style:
-
-.. code-block:: bash
-
-   $ tox -e style
-
-Check import sort ordering:
+To check style and sort ordering:
 
 .. code-block:: bash
 
-   $ tox -e isort-check
+   $ tox -e style,isort-check
 
-Enforce import sort ordering:
-
-.. code-block:: bash
-
-   $ tox -e isort-run
-
-Generate sphinx docs locally:
+To generate and open local sphinx documentation:
 
 .. code-block:: bash
 
    $ tox -e docs
 
-Run the 'pex' tool in a 2.7 environment:
+To run the 'pex' tool from source (for 3.4, use 'py34-run'):
 
 .. code-block:: bash
 
-   $ tox -e run27 -- <cmdline>
+   $ tox -e py27-run -- <cmdline>
 
-Run the 'pex' tool in a 3.4 environment:
 
-.. code-block:: bash
-
-   $ tox -e run34 -- <cmdline>
+Contributing
+============
 
 To contribute, follow these instructions: http://pantsbuild.github.io/howto_contribute.html

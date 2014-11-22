@@ -12,6 +12,7 @@ __all__ = ('Tracer',)
 
 class Trace(object):
   __slots__ = ('msg', 'verbosity', 'parent', 'children', '_clock', '_start', '_stop')
+
   def __init__(self, msg, parent=None, verbosity=1, clock=time):
     self.msg = msg
     self.verbosity = verbosity

@@ -10,7 +10,6 @@ from __future__ import absolute_import, print_function
 
 import os
 import sys
-import time
 from optparse import OptionParser
 
 from pex.common import safe_delete, safe_mkdtemp

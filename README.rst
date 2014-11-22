@@ -27,13 +27,14 @@ To install pex, simply
 
     $ pip install pex
 
-You can also "install" pex by using pex to build itself in a git clone using tox:
+You can also build pex in a git clone using tox:
 
 .. code-block:: bash
 
     $ tox -e package
+    $ cp dist/pex ~/bin
 
-This will build a pex binary in ``dist/pex`` that can be copied onto your ``$PATH``.
+This builds a pex binary in ``dist/pex`` that can be copied onto your ``$PATH``.
 The advantage to this approach is that it keeps your Python environment as empty as
 possible and is more in-line with what pex does philosophically.
 
@@ -47,7 +48,14 @@ Launch an interpreter with ``requests`` and ``flask`` in the environment:
 
     $ pex -r requests -r flask
 
-Launch Sphinx in an ephemeral pex environment:
+Run webserver.py in an environment containing ``flask`` and the setup.py package in
+the current working directory:
+
+.. code-block:
+
+    $ pex -r flask -s . -- webserver.py
+
+Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sphinx:main``:
 
 .. code-block:: bash
 
@@ -61,9 +69,12 @@ Build a standalone pex binary into ``pex.pex``:
 
 Build a standalone pex binary but invoked using a specific Python version:
 
-.. code-block:
+.. code-block::
 
     $ pex -r pex -e pex.bin.pex:main --python=pypy -o pypy-pex.pex
+
+Most pex options compose well with one another, so the above commands can be
+mixed and matched.
 
 
 Documentation

@@ -4,14 +4,18 @@ PEX
     :target: https://travis-ci.org/pantsbuild/pex
 
 pex is a library for generating .pex (Python EXecutable) files which are
-executable Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_ and
-an expansion upon the ideas in `PEP 441 <http://legacy.python.org/dev/peps/pep-0441/>`_.
-They are designed to make deployment of Python applications as simple as ``cp``.
+executable Python environments in the spirit of `virtualenvs <http://virtualenv.org>`_.
+pex is an expansion upon the ideas outlined in
+`PEP 441 <http://legacy.python.org/dev/peps/pep-0441/>`_
+and make the deployment of Python applications as simple as ``cp``.
 pex is licensed under the Apache2 license.
 
-.pex files can be built using the ``pex`` tool bundled with pex.  Build systems such as `Pants
+pex files can be built using the ``pex`` tool.  Build systems such as `Pants
 <http://pantsbuild.github.io/>`_ and `Buck <http://facebook.github.io/buck/>`_ also
 support building .pex files directly.
+
+Still unsure about what pex does?  Watch this quick lightning
+talk: `WTF is PEX? <http://www.youtube.com/watch?v=NmpnGhRwsu0>`_.
 
 
 Installation
@@ -30,6 +34,36 @@ You can also "install" pex by using pex to build itself in a git clone using tox
     $ tox -e package
 
 This will build a pex binary in ``dist/pex`` that can be copied onto your ``$PATH``.
+The advantage to this approach is that it keeps your Python environment as empty as
+possible and is more in-line with what pex does philosophically.
+
+
+Simple Examples
+===============
+
+Launch an interpreter with ``requests`` and ``flask`` in the environment:
+
+.. code-block:: bash
+
+    $ pex -r requests -r flask
+
+Launch Sphinx in an ephemeral pex environment:
+
+.. code-block:: bash
+
+    $ pex -r sphinx -e sphinx:main -- --help
+
+Build a standalone pex binary into ``pex.pex``:
+
+.. code-block::
+
+    $ pex -r pex -e pex.bin.pex:main -o pex.pex
+
+Build a standalone pex binary but invoked using a specific Python version:
+
+.. code-block:
+
+    $ pex -r pex -e pex.bin.pex:main --python=pypy -o pypy-pex.pex
 
 
 Documentation

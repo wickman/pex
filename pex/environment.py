@@ -21,10 +21,10 @@ from .interpreter import PythonInterpreter
 from .package import distribution_compatible
 from .pex_builder import PEXBuilder
 from .pex_info import PexInfo
-from .tracer import Tracer
+from .tracer import TraceLogger
 from .util import CacheHelper, DistributionHelper
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex.environment: ')
+TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex.environment: ')
 
 
 class PEXEnvironment(Environment):
@@ -45,7 +45,7 @@ class PEXEnvironment(Environment):
                          if not x.startswith(PEXBuilder.BOOTSTRAP_DIR) and
                             not x.startswith(PexInfo.INTERNAL_CACHE))
             pex_zip.extractall(explode_tmp, pex_files)
-        except:
+        except:  # noqa: T803
           safe_rmtree(explode_tmp)
           raise
       TRACER.log('Renaming %s to %s' % (explode_tmp, explode_dir))
@@ -131,9 +131,7 @@ class PEXEnvironment(Environment):
     if not self._pex_info.zip_safe and os.path.isfile(self._pex):
       self.update_module_paths(self.force_local(self._pex, self._pex_info))
 
-    # TODO(wickman)  Implement dynamic fetchers if pex_info requirements specify dynamic=True
-    # or a non-empty repository.
-    all_reqs = [Requirement.parse(req) for req, _, _ in self._pex_info.requirements]
+    all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
 
     working_set = WorkingSet([])
 

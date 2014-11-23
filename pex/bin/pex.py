@@ -9,21 +9,24 @@ sources, requirements and their dependencies.
 from __future__ import absolute_import, print_function
 
 import os
+import shutil
 import sys
-import time
 from optparse import OptionParser
 
 from pex.common import safe_delete, safe_mkdtemp
 from pex.fetcher import Fetcher, PyPIFetcher
-from pex.installer import EggInstaller, WheelInstaller
+from pex.installer import EggInstaller, Packager, WheelInstaller
 from pex.interpreter import PythonInterpreter
-from pex.package import EggPackage, SourcePackage, WheelPackage
+from pex.package import EggPackage, Package, SourcePackage, WheelPackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
-from pex.tracer import Tracer, TRACER
+from pex.tracer import TraceLogger, TRACER
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
+from pex.version import __version__
+
+CANNOT_DISTILL = 101
 
 
 def die(msg, error_code=1):
@@ -51,7 +54,7 @@ def configure_clp():
       '%prog builds a PEX (Python Executable) file based on the given specifications: '
       'sources, requirements, their dependencies and other options')
 
-  parser = OptionParser(usage=usage, version='%prog 0.2')
+  parser = OptionParser(usage=usage, version='%prog {}'.format(__version__))
 
   parser.add_option(
       '--pypi', '--no-pypi',
@@ -273,9 +276,30 @@ def build_pex(args, options):
   else:
     precedence = (EggPackage, SourcePackage)
 
+  requirements = options.requirements[:]
+
+  if options.source_dirs:
+    temporary_package_root = safe_mkdtemp()
+
+    for source_dir in options.source_dirs:
+      try:
+        sdist = Packager(source_dir).sdist()
+      except installer.Error:
+        die('Failed to run installer for %s' % source_dir, CANNOT_DISTILL)
+
+      # record the requirement information
+      sdist_pkg = Package.from_href(sdist)
+      requirements.append('%s==%s' % (sdist_pkg.name, sdist_pkg.raw_version))
+
+      # copy the source distribution
+      shutil.copyfile(sdist, os.path.join(temporary_package_root, os.path.basename(sdist)))
+
+    # Tell pex where to find the packages
+    fetchers.append(Fetcher([temporary_package_root]))
+
   with TRACER.timed('Resolving distributions'):
     resolveds = requirement_resolver(
-        options.requirements,
+        requirements,
         fetchers=fetchers,
         translator=translator,
         interpreter=interpreter,
@@ -288,13 +312,6 @@ def build_pex(args, options):
     log('  %s' % pkg, v=options.verbosity)
     pex_builder.add_distribution(pkg)
     pex_builder.add_requirement(pkg.as_requirement())
-
-  for source_dir in options.source_dirs:
-    try:
-      bdist = installer(source_dir).bdist()
-    except installer.Error:
-      die('Failed to run installer for %s' % source_dir, CANNOT_DISTILL)
-    pex_builder.add_dist_location(bdist)
 
   if options.entry_point is not None:
     log('Setting entry point to %s' % options.entry_point, v=options.verbosity)
@@ -309,7 +326,7 @@ def main():
   parser = configure_clp()
   options, args = parser.parse_args()
 
-  with Tracer.env_override(PEX_VERBOSE=options.verbosity):
+  with TraceLogger.env_override(PEX_VERBOSE=options.verbosity):
 
     pex_builder = build_pex(args, options)
 
@@ -329,3 +346,7 @@ def main():
     log('Running PEX file at %s with args %s' % (pex_builder.path(), args), v=options.verbosity)
     pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)
     return pex.run(args=list(args))
+
+
+if __name__ == '__main__':
+  main()

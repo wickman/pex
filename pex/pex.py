@@ -20,9 +20,9 @@ from .environment import PEXEnvironment
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
-from .tracer import Tracer
+from .tracer import TraceLogger
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex: ')
+TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex: ')
 
 
 class DevNull(object):
@@ -33,7 +33,7 @@ class DevNull(object):
     pass
 
 
-class PEX(object):
+class PEX(object):  # noqa: T000
   """PEX, n. A self-contained python environment."""
 
   class Error(Exception): pass
@@ -50,10 +50,13 @@ class PEX(object):
 
   @classmethod
   def clean_environment(cls, forking=False):
-    os.unsetenv('MACOSX_DEPLOYMENT_TARGET')
+    try:
+      del os.environ['MACOSX_DEPLOYMENT_TARGET']
+    except KeyError:
+      pass
     if not forking:
       for key in filter(lambda key: key.startswith('PEX_'), os.environ):
-        os.unsetenv(key)
+        del os.environ[key]
 
   def __init__(self, pex=sys.argv[0], interpreter=None):
     self._pex = pex
@@ -101,17 +104,44 @@ class PEX(object):
       site_libs = set()
     site_libs.update([sysconfig.get_python_lib(plat_specific=False),
                       sysconfig.get_python_lib(plat_specific=True)])
-    return site_libs
+    real_site_libs = set(os.path.realpath(path) for path in site_libs)
+    return site_libs | real_site_libs
 
   @classmethod
-  def minimum_sys_modules(cls, site_libs):
+  def _tainted_path(cls, path, site_libs):
+    paths = frozenset([path, os.path.realpath(path)])
+    return any(path.startswith(site_lib) for site_lib in site_libs for path in paths)
+
+  @classmethod
+  def minimum_sys_modules(cls, site_libs, modules=None):
+    """Given a set of site-packages paths, return a "clean" sys.modules.
+
+    When importing site, modules within sys.modules have their __path__'s populated with
+    additional paths as defined by *-nspkg.pth in site-packages, or alternately by distribution
+    metadata such as *.dist-info/namespace_packages.txt.  This can possibly cause namespace
+    packages to leak into imports despite being scrubbed from sys.path.
+
+    NOTE: This method mutates modules' __path__ attributes in sys.module, so this is currently an
+    irreversible operation.
+    """
+
+    modules = modules or sys.modules
     new_modules = {}
 
-    for module_name, module in sys.modules.items():
-      if any(path.startswith(site_lib) for path in getattr(module, '__path__', ())
-          for site_lib in site_libs):
-        TRACER.log('Scrubbing %s from sys.modules' % module)
-      else:
+    for module_name, module in modules.items():
+      # builtins can stay
+      if not hasattr(module, '__path__'):
+        new_modules[module_name] = module
+        continue
+
+      # Pop off site-impacting __path__ elements in-place.
+      for k in reversed(range(len(module.__path__))):
+        if cls._tainted_path(module.__path__[k], site_libs):
+          TRACER.log('Scrubbing %s.__path__: %s' % (module_name, module.__path__[k]), V=3)
+          module.__path__.pop(k)
+
+      # It still contains path elements not in site packages, so it can stay in sys.modules
+      if module.__path__:
         new_modules[module_name] = module
 
     return new_modules
@@ -119,15 +149,24 @@ class PEX(object):
   @classmethod
   def minimum_sys_path(cls, site_libs):
     site_distributions = OrderedSet()
-    for path_element in sys.path:
-      if any(path_element.startswith(site_lib) for site_lib in site_libs):
-        TRACER.log('Inspecting path element: %s' % path_element, V=2)
-        site_distributions.update(dist.location for dist in find_distributions(path_element))
+    user_site_distributions = OrderedSet()
 
-    user_site_distributions = OrderedSet(dist.location for dist in find_distributions(USER_SITE))
+    def all_distribution_paths(path):
+      locations = set(dist.location for dist in find_distributions(path))
+      return set([path]) | locations | set(os.path.realpath(path) for path in locations)
+
+    for path_element in sys.path:
+      if cls._tainted_path(path_element, site_libs):
+        TRACER.log('Tainted path element: %s' % path_element)
+        site_distributions.update(all_distribution_paths(path_element))
+      else:
+        TRACER.log('Not a tained path element: %s' % path_element, V=2)
+
+    user_site_distributions.update(all_distribution_paths(USER_SITE))
 
     for path in site_distributions:
       TRACER.log('Scrubbing from site-packages: %s' % path)
+
     for path in user_site_distributions:
       TRACER.log('Scrubbing from user site: %s' % path)
 
@@ -138,6 +177,10 @@ class PEX(object):
       sys.path_importer_cache.keys())
     scrubbed_importer_cache = dict((key, value) for (key, value) in sys.path_importer_cache.items()
       if key not in scrub_from_importer_cache)
+
+    for importer_cache_entry in scrub_from_importer_cache:
+      TRACER.log('Scrubbing from path_importer_cache: %s' % importer_cache_entry, V=2)
+
     return scrubbed_sys_path, scrubbed_importer_cache
 
   @classmethod
@@ -155,8 +198,8 @@ class PEX(object):
       site_libs.add(extras_path)
     site_libs = set(os.path.normpath(path) for path in site_libs)
 
-    sys_modules = cls.minimum_sys_modules(site_libs)
     sys_path, sys_path_importer_cache = cls.minimum_sys_path(site_libs)
+    sys_modules = cls.minimum_sys_modules(site_libs)
 
     return sys_path, sys_path_importer_cache, sys_modules
 
@@ -178,6 +221,10 @@ class PEX(object):
     finally:
       patch(old_working_set)
 
+  # Thar be dragons -- when this contextmanager exits, the interpreter is
+  # potentially in a wonky state since the patches here (minimum_sys_modules
+  # for example) actually mutate global state.  This should not be
+  # considered a reversible operation despite being a contextmanager.
   @classmethod
   @contextmanager
   def patch_sys(cls):
@@ -215,7 +262,7 @@ class PEX(object):
       with self.patch_sys():
         working_set = self._env.activate()
         if 'PEX_COVERAGE' in os.environ:
-          PEX.start_coverage()
+          self.start_coverage()
         TRACER.log('PYTHONPATH contains:')
         for element in sys.path:
           TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
@@ -241,8 +288,8 @@ class PEX(object):
   @classmethod
   def execute_interpreter(cls):
     force_interpreter = 'PEX_INTERPRETER' in os.environ
-    # TODO(wickman) Apparently os.unsetenv doesn't work on Windows
-    os.unsetenv('PEX_INTERPRETER')
+    if force_interpreter:
+      del os.environ['PEX_INTERPRETER']
     TRACER.log('%s, dropping into interpreter' % (
         'PEX_INTERPRETER specified' if force_interpreter else 'No entry point specified'))
     if sys.argv[1:]:

@@ -4,6 +4,7 @@ import os
 import shutil
 import uuid
 from abc import abstractmethod
+from email import message_from_string
 
 from .common import safe_mkdtemp, safe_open
 from .compatibility import AbstractClass, PY3
@@ -40,6 +41,8 @@ class Context(AbstractClass):
   specialized by individual implementations.
   """
 
+  DEFAULT_ENCODING = 'iso-8859-1'
+
   class Error(Exception):
     """Error base class for Contexts to wrap application-specific exceptions."""
     pass
@@ -75,6 +78,12 @@ class Context(AbstractClass):
     with contextlib.closing(self.open(link)) as fp:
       return fp.read()
 
+  def content(self, link):
+    """Return the encoded content associated with the link.
+
+    :param link: The :class:`Link` to read.
+    """
+
   def fetch(self, link, into=None):
     """Fetch the binary content associated with the link and write to a file.
 
@@ -104,6 +113,14 @@ class UrllibContext(Context):
   def open(self, link):
     return urllib_request.urlopen(link.url)
 
+  def content(self, link):
+    if link.local:
+      raise self.Error('Context.content only works with remote URLs.')
+
+    with contextlib.closing(self.open(link)) as fp:
+      encoding = message_from_string(str(fp.headers)).get_content_charset(self.DEFAULT_ENCODING)
+      return fp.read().decode(encoding, errors='replace')
+
 
 Context.register(UrllibContext)
 
@@ -122,8 +139,9 @@ class StreamFilelike(object):
         return None, None
     return None, None
 
-  def __init__(self, request, link, chunk_size=16*1024):
+  def __init__(self, request, link, chunk_size=16384):
     self._iterator = request.iter_content(chunk_size)
+    self.encoding = request.encoding
     self._bytes = b''
     self._link = link
     self._hasher, self._hash_value = self.detect_algorithm(link)
@@ -157,18 +175,54 @@ class StreamFilelike(object):
 class RequestsContext(Context):
   """A requests-based Context."""
 
-  def __init__(self, session=None, verify=True):
+  @staticmethod
+  def _create_session(max_retries):
+    session = requests.session()
+    retrying_adapter = requests.adapters.HTTPAdapter(max_retries=max_retries)
+    session.mount('http://', retrying_adapter)
+    session.mount('https://', retrying_adapter)
+
+    return session
+
+  def __init__(self, session=None, verify=True, max_retries=5):
     self._verify = verify
-    self._session = session or requests.session()
+
+    max_retries = int(os.environ.get('PEX_HTTP_RETRIES', max_retries))
+
+    if max_retries < 0:
+      raise ValueError('max_retries may not be negative.')
+
+    self._max_retries = max_retries
+    self._session = session or self._create_session(self._max_retries)
 
   def open(self, link):
     # requests does not support file:// -- so we must short-circuit manually
     if link.local:
-      return open(link.path, 'rb')
-    try:
-      return StreamFilelike(requests.get(link.url, verify=self._verify, stream=True), link)
-    except requests.exceptions.RequestException as e:
-      raise self.Error(e)
+      return open(link.path, 'rb')  # noqa: T802
+    for attempt in range(self._max_retries + 1):
+      try:
+        return StreamFilelike(self._session.get(link.url, verify=self._verify, stream=True), link)
+      except requests.exceptions.ReadTimeout:
+        # Connect timeouts are handled by the HTTPAdapter, unfortunately read timeouts are not
+        # so we'll retry them ourselves.
+        TRACER.log('Read timeout trying to fetch %s, retrying. %d retries remain.' % (
+            link.url,
+            self._max_retries - attempt))
+      except requests.exceptions.RequestException as e:
+        raise self.Error(e)
+
+    raise self.Error(
+        requests.packages.urllib3.exceptions.MaxRetryError(
+            None,
+            link,
+            'Exceeded max retries of %d' % self._max_retries))
+
+  def content(self, link):
+    if link.local:
+      raise self.Error('Context.content only works with remote URLs.')
+
+    with contextlib.closing(self.open(link)) as request:
+      return request.read().decode(request.encoding or self.DEFAULT_ENCODING, errors='replace')
 
 
 if requests:

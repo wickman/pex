@@ -7,11 +7,12 @@ import threading
 import time
 from contextlib import contextmanager
 
-__all__ = ('Tracer',)
+__all__ = ('TraceLogger',)
 
 
 class Trace(object):
   __slots__ = ('msg', 'verbosity', 'parent', 'children', '_clock', '_start', '_stop')
+
   def __init__(self, msg, parent=None, verbosity=1, clock=time):
     self.msg = msg
     self.verbosity = verbosity
@@ -31,7 +32,7 @@ class Trace(object):
     return self._stop - self._start
 
 
-class Tracer(object):
+class TraceLogger(object):
   """
     A multi-threaded tracer.
   """
@@ -80,7 +81,7 @@ class Tracer(object):
   def should_log(self, V):
     return self._predicate(V)
 
-  def log(self, msg, V=0, end='\n'):
+  def log(self, msg, V=1, end='\n'):
     if not self.should_log(V):
       return
     if not self._isatty and end == '\r':
@@ -115,7 +116,7 @@ class Tracer(object):
         self.print_trace(indent=indent + 2, node=child)
 
   @contextmanager
-  def timed(self, msg, V=0):
+  def timed(self, msg, V=1):
     if getattr(self._local, 'parent', None) is None:
       self._local.parent = Trace(msg, verbosity=V, clock=self._clock)
     else:
@@ -131,4 +132,4 @@ class Tracer(object):
       self._local.parent = None
 
 
-TRACER = Tracer(predicate=Tracer.env_filter('PEX_VERBOSE'), prefix='pex: ')
+TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex: ')

@@ -2,11 +2,12 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 import os
-import sys
 import textwrap
+from types import ModuleType
 
 import pytest
 
+from pex.pex import PEX
 from pex.testing import run_simple_pex_test
 
 
@@ -25,6 +26,7 @@ def test_pex_sys_exit_does_not_raise():
   assert rc == 2
 
 
+@pytest.mark.skipif('hasattr(sys, "pypy_version_info")')
 def test_pex_atexit_swallowing():
   body = textwrap.dedent("""
   import atexit
@@ -44,3 +46,33 @@ def test_pex_atexit_swallowing():
   so, rc = run_simple_pex_test(body, env=env_copy)
   assert b'This is an exception' in so
   assert rc == 0
+
+
+def test_minimum_sys_modules():
+  # builtins stay
+  builtin_module = ModuleType('my_builtin')
+  modules = {'my_builtin': builtin_module}
+  new_modules = PEX.minimum_sys_modules([], modules)
+  assert new_modules == modules
+  new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
+  assert new_modules == modules
+
+  # tainted evict
+  tainted_module = ModuleType('tainted_module')
+  tainted_module.__path__ = ['bad_path']
+  modules = {'tainted_module': tainted_module}
+  new_modules = PEX.minimum_sys_modules([], modules)
+  assert new_modules == modules
+  new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
+  assert new_modules == {}
+  assert tainted_module.__path__ == []
+
+  # tainted cleaned
+  tainted_module = ModuleType('tainted_module')
+  tainted_module.__path__ = ['bad_path', 'good_path']
+  modules = {'tainted_module': tainted_module}
+  new_modules = PEX.minimum_sys_modules([], modules)
+  assert new_modules == modules
+  new_modules = PEX.minimum_sys_modules(['bad_path'], modules)
+  assert new_modules == modules
+  assert tainted_module.__path__ == ['good_path']

@@ -134,6 +134,11 @@ class ResolvableRequirement(Resolvable):
     self._follow_links = follow_links
     self._iterator = iterator
 
+  def __eq__(self, other):
+    return isinstance(other, ResolvableRequirement) and (
+       self.requirement == other.requirement and
+       self._follow_links == other._follow_links)
+
   @property
   def iterator(self):
     return self._iterator

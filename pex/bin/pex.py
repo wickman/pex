@@ -13,10 +13,15 @@ import shutil
 import sys
 from optparse import OptionParser
 
-from pex.common import safe_delete, safe_mkdtemp
+from pex.archiver import Archiver
+from pex.base import maybe_requirement
+from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
+from pex.crawler import Crawler
+from pex.http import Context
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.installer import EggInstaller, Packager, WheelInstaller
 from pex.interpreter import PythonInterpreter
+from pex.iterator import Iterator
 from pex.package import EggPackage, Package, SourcePackage, WheelPackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
@@ -25,9 +30,6 @@ from pex.resolver import resolve as requirement_resolver
 from pex.tracer import TRACER, TraceLogger
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 from pex.version import __version__, __setuptools_requirement, __wheel_requirement
-
-from .interpreter_cache import resolve_interpreter
-
 
 CANNOT_DISTILL = 101
 
@@ -210,6 +212,71 @@ def configure_clp():
       help='Turn on logging verbosity, may be specified multiple times.')
 
   return parser
+
+
+def _safe_link(src, dst):
+  try:
+    os.unlink(dst)
+  except OSError:
+    pass
+  os.symlink(src, dst)
+
+
+def _resolve_and_link_interpreter(requirement, fetchers, target_link, installer_provider):
+  # Short-circuit if there is a local copy
+  if os.path.exists(target_link) and os.path.exists(os.path.realpath(target_link)):
+    egg = EggPackage(os.path.realpath(target_link))
+    if egg.satisfies(requirement):
+      return egg
+
+  context = Context.get()
+  iterator = Iterator(fetchers=fetchers, crawler=Crawler(context))
+  links = [link for link in iterator.iter(requirement) if isinstance(link, SourcePackage)]
+
+  with TRACER.timed('Interpreter cache resolving %s' % requirement, V=2):
+    for link in links:
+      with TRACER.timed('Fetching %s' % link, V=3):
+        sdist = context.fetch(link)
+
+      with TRACER.timed('Installing %s' % link, V=3):
+        installer = installer_provider(sdist)
+        dist_location = installer.bdist()
+        target_location = os.path.join(
+            os.path.dirname(target_link), os.path.basename(dist_location))
+        shutil.move(dist_location, target_location)
+        _safe_link(target_location, target_link)
+
+      return EggPackage(target_location)
+
+
+def resolve_interpreter(cache, interpreter, requirement, fetchers):
+  """Resolve an interpreter with a specific requirement.
+
+     Given a :class:`PythonInterpreter` and a requirement, return an
+     interpreter with the capability of resolving that requirement or
+     ``None`` if it's not possible to install a suitable requirement."""
+  requirement = maybe_requirement(requirement)
+  interpreter_dir = os.path.join(cache, str(interpreter.identity))
+  safe_mkdir(interpreter_dir)
+
+  # short circuit
+  if interpreter.satisfies([requirement]):
+    return interpreter
+
+  def installer_provider(sdist):
+    return EggInstaller(
+        Archiver.unpack(sdist),
+        strict=requirement.key != 'setuptools',
+        interpreter=interpreter)
+
+  egg = _resolve_and_link_interpreter(
+      requirement,
+      fetchers,
+      os.path.join(interpreter_dir, requirement.key),
+      installer_provider)
+
+  if egg:
+    return interpreter.with_extra(egg.name, egg.raw_version, egg.path)
 
 
 def fetchers_from_options(options):

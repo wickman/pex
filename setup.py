@@ -53,10 +53,7 @@ setup(
   ],
   entry_points = {
     'console_scripts': [
-      'pex = pex.bin.pex:main [whl]',
+      'pex = pex.bin.pex:main',
     ],
-  },
-  extras_require = {
-    'whl': [__wheel_requirement],
   },
 )

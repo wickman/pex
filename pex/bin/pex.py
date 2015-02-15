@@ -8,6 +8,7 @@ sources, requirements and their dependencies.
 
 from __future__ import absolute_import, print_function
 
+import functools
 import os
 import shutil
 import sys
@@ -29,9 +30,15 @@ from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
 from pex.tracer import TRACER, TraceLogger
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
-from pex.version import __version__, __setuptools_requirement, __wheel_requirement
+from pex.version import (
+    __setuptools_requirement,
+    __version__,
+    __wheel_requirement,
+)
+
 
 CANNOT_DISTILL = 101
+CANNOT_SETUP_INTERPRETER = 102
 
 
 def die(msg, error_code=1):
@@ -138,15 +145,15 @@ def configure_clp():
       '--interpreter-cache-dir',
       dest='interpreter_cache_dir',
       default=os.path.expanduser('~/.pex/interpreters'),
-      help='The local cache directory to use for speeding up requirement '
-           'lookups; [Default: %default]')
+      help='The interpreter cache to use for keeping track of interpreter dependencies '
+           'for the pex tool. [Default: %default]')
 
   parser.add_option(
       '--cache-dir',
       dest='cache_dir',
       default=os.path.expanduser('~/.pex/build'),
       help='The local cache directory to use for speeding up requirement '
-           'lookups; [Default: %default]')
+           'lookups. [Default: %default]')
 
   parser.add_option(
       '--cache-ttl',
@@ -249,7 +256,7 @@ def _resolve_and_link_interpreter(requirement, fetchers, target_link, installer_
       return EggPackage(target_location)
 
 
-def resolve_interpreter(cache, interpreter, requirement, fetchers):
+def resolve_interpreter(cache, fetchers, interpreter, requirement):
   """Resolve an interpreter with a specific requirement.
 
      Given a :class:`PythonInterpreter` and a requirement, return an
@@ -293,6 +300,7 @@ def fetchers_from_options(options):
 
 def interpreter_from_options(options):
   interpreter = None
+
   if options.python:
     if os.path.exists(options.python):
       interpreter = PythonInterpreter.from_binary(options.python)
@@ -303,28 +311,22 @@ def interpreter_from_options(options):
   else:
     interpreter = PythonInterpreter.get()
 
-  fetchers = fetchers_from_options(options)
+  with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
+    fetchers = fetchers_from_options(options)
 
-  # resolve setuptools
-  interpreter = resolve_interpreter(
-      options.interpreter_cache_dir,
-      interpreter,
-      __setuptools_requirement,
-      fetchers)
+    resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, fetchers)
 
-  # possibly resolve wheel
-  if interpreter and options.use_wheel:
-    interpreter = resolve_interpreter(
-        options.interpreter_cache_dir,
-        interpreter,
-        __wheel_requirement,
-        fetchers)
+    # resolve setuptools
+    interpreter = resolve(interpreter, __setuptools_requirement)
 
-  return interpreter
+    # possibly resolve wheel
+    if interpreter and options.use_wheel:
+      interpreter = resolve(interpreter, __wheel_requirement)
+
+    return interpreter
 
 
-def translator_from_options(options):
-  interpreter = interpreter_from_options(options)
+def translator_from_options(interpreter, options):
   platform = options.platform
 
   translators = []
@@ -344,7 +346,11 @@ def translator_from_options(options):
 
 
 def build_pex(args, options):
-  interpreter = interpreter_from_options(options)
+  with TRACER.timed('Resolving interpreter', V=2):
+    interpreter = interpreter_from_options(options)
+
+  if interpreter is None:
+    die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
   pex_builder = PEXBuilder(
       path=safe_mkdtemp(),
@@ -360,9 +366,8 @@ def build_pex(args, options):
 
   installer = WheelInstaller if options.use_wheel else EggInstaller
 
-  interpreter = interpreter_from_options(options)
   fetchers = fetchers_from_options(options)
-  translator = translator_from_options(options)
+  translator = translator_from_options(interpreter, options)
 
   if options.use_wheel:
     precedence = (WheelPackage, EggPackage, SourcePackage)
@@ -421,7 +426,8 @@ def main():
 
   with TraceLogger.env_override(PEX_VERBOSE=options.verbosity):
 
-    pex_builder = build_pex(args, options)
+    with TRACER.timed('Building pex'):
+      pex_builder = build_pex(args, options)
 
     if options.pex_name is not None:
       log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)

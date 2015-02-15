@@ -22,7 +22,7 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
-from pex.tracer import TraceLogger, TRACER
+from pex.tracer import TRACER, TraceLogger
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 from pex.version import __version__
 
@@ -54,7 +54,7 @@ def configure_clp():
       '%prog builds a PEX (Python Executable) file based on the given specifications: '
       'sources, requirements, their dependencies and other options')
 
-  parser = OptionParser(usage=usage, version='%prog {}'.format(__version__))
+  parser = OptionParser(usage=usage, version='%prog {0}'.format(__version__))
 
   parser.add_option(
       '--pypi', '--no-pypi',

@@ -7,7 +7,7 @@ from abc import abstractmethod
 from email import message_from_string
 
 from .common import safe_mkdtemp, safe_open
-from .compatibility import AbstractClass, PY3
+from .compatibility import PY3, AbstractClass
 from .tracer import TRACER
 
 try:
@@ -119,7 +119,7 @@ class UrllibContext(Context):
 
     with contextlib.closing(self.open(link)) as fp:
       encoding = message_from_string(str(fp.headers)).get_content_charset(self.DEFAULT_ENCODING)
-      return fp.read().decode(encoding, errors='replace')
+      return fp.read().decode(encoding, 'replace')
 
 
 Context.register(UrllibContext)
@@ -222,7 +222,7 @@ class RequestsContext(Context):
       raise self.Error('Context.content only works with remote URLs.')
 
     with contextlib.closing(self.open(link)) as request:
-      return request.read().decode(request.encoding or self.DEFAULT_ENCODING, errors='replace')
+      return request.read().decode(request.encoding or self.DEFAULT_ENCODING, 'replace')
 
 
 if requests:

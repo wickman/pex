@@ -11,6 +11,11 @@ with open(os.path.join(os.path.dirname(__file__), 'CHANGES.rst')) as fp:
 
 
 # This seems to be a fairly standard version file pattern.
+#
+# Populates the following variables:
+#   __version__
+#   __setuptools_requirement
+#   __wheel_requirement
 __version__ = ''
 version_py_file = os.path.join(os.path.dirname(__file__), 'pex', 'version.py')
 with open(version_py_file) as version_py:
@@ -36,7 +41,7 @@ setup(
     'pex.bin',
   ],
   install_requires = [
-    'setuptools>=2.2,<8',
+    __setuptools_requirement,
   ],
   tests_require = [
     'mock',
@@ -52,6 +57,6 @@ setup(
     ],
   },
   extras_require = {
-    'whl': ['wheel>=0.24.0,<0.25.0'],
+    'whl': [__wheel_requirement],
   },
 )

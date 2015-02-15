@@ -24,7 +24,10 @@ from pex.platforms import Platform
 from pex.resolver import resolve as requirement_resolver
 from pex.tracer import TRACER, TraceLogger
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
-from pex.version import __version__
+from pex.version import __version__, __setuptools_requirement, __wheel_requirement
+
+from .interpreter_cache import resolve_interpreter
+
 
 CANNOT_DISTILL = 101
 
@@ -130,6 +133,13 @@ def configure_clp():
            '[Default: %default]')
 
   parser.add_option(
+      '--interpreter-cache-dir',
+      dest='interpreter_cache_dir',
+      default=os.path.expanduser('~/.pex/interpreters'),
+      help='The local cache directory to use for speeding up requirement '
+           'lookups; [Default: %default]')
+
+  parser.add_option(
       '--cache-dir',
       dest='cache_dir',
       default=os.path.expanduser('~/.pex/build'),
@@ -202,6 +212,18 @@ def configure_clp():
   return parser
 
 
+def fetchers_from_options(options):
+  fetchers = [Fetcher(options.repos)]
+
+  if options.pypi:
+    fetchers.append(PyPIFetcher())
+
+  if options.indices:
+    fetchers.extend(PyPIFetcher(index) for index in options.indices)
+
+  return fetchers
+
+
 def interpreter_from_options(options):
   interpreter = None
   if options.python:
@@ -213,6 +235,24 @@ def interpreter_from_options(options):
       die('Failed to find interpreter: %s' % options.python)
   else:
     interpreter = PythonInterpreter.get()
+
+  fetchers = fetchers_from_options(options)
+
+  # resolve setuptools
+  interpreter = resolve_interpreter(
+      options.interpreter_cache_dir,
+      interpreter,
+      __setuptools_requirement,
+      fetchers)
+
+  # possibly resolve wheel
+  if interpreter and options.use_wheel:
+    interpreter = resolve_interpreter(
+        options.interpreter_cache_dir,
+        interpreter,
+        __wheel_requirement,
+        fetchers)
+
   return interpreter
 
 
@@ -254,15 +294,7 @@ def build_pex(args, options):
   installer = WheelInstaller if options.use_wheel else EggInstaller
 
   interpreter = interpreter_from_options(options)
-
-  fetchers = [Fetcher(options.repos)]
-
-  if options.pypi:
-    fetchers.append(PyPIFetcher())
-
-  if options.indices:
-    fetchers.extend(PyPIFetcher(index) for index in options.indices)
-
+  fetchers = fetchers_from_options(options)
   translator = translator_from_options(options)
 
   if options.use_wheel:

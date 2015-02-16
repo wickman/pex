@@ -17,6 +17,10 @@ with open(version_py_file) as version_py:
   exec(compile(version_py.read(), version_py_file, 'exec'))
 
 
+# N.B.
+#   setuptools 11.3 adds EntryPoint.resolve
+#   setuptools 8.3 pkg_resources is now a package (and vendors packaging)
+
 setup(
   name = 'pex',
   version = __version__,
@@ -36,7 +40,7 @@ setup(
     'pex.bin',
   ],
   install_requires = [
-    'setuptools>=2.2,<8',
+    'setuptools>=11.3,<13',
   ],
   tests_require = [
     'mock',

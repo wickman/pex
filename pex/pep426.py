@@ -35,8 +35,14 @@ PEP426_EXPRS = (
 
 class PEP426Marker(namedtuple('PEP426Marker', [name for name, _ in PEP426_EXPRS])):
   @classmethod
+  def from_kwargs(cls, **markers):
+    empty_markers = dict((expr_name, '') for expr_name, _ in PEP426_EXPRS)
+    empty_markers.update(markers)
+    return cls(**empty_markers)
+
+  @classmethod
   def from_lines(cls, lines):
-    markers = dict((expr_name, '') for expr_name, _ in PEP426_EXPRS)
+    markers = {}
     for line in lines:
       try:
         expr_name, expr_value = line.split(':', 1)
@@ -44,13 +50,7 @@ class PEP426Marker(namedtuple('PEP426Marker', [name for name, _ in PEP426_EXPRS]
         # This shouldn't happen but we cannot fail hard.
         continue
       markers[expr_name] = expr_value
-    return cls(**markers)
-
-  @classmethod
-  def from_kwargs(cls, **markers):
-    empty_markers = dict((expr_name, '') for expr_name, _ in PEP426_EXPRS)
-    empty_markers.update(markers)
-    return cls(**empty_markers)
+    return cls.from_kwargs(**markers)
 
 
 parse_marker = PEP426Marker.from_lines

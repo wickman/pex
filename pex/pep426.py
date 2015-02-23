@@ -2,7 +2,10 @@
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
 """
-Extract and evaluate PEP426 markers.
+Extract and evaluate PEP426 environment markers.
+
+For more information about environment markers, see:
+https://www.python.org/dev/peps/pep-0426/#environment-markers
 """
 
 import os
@@ -112,8 +115,10 @@ def tokenize(marker, string):
       string = string[len(subexpr):]
       continue
 
-    if string.startswith("'"):
-      closing_quote = string.find("'", 1)
+    # PEP426 specifies only ' but " is found everywhere, so we have to honor it.
+    if string.startswith("'") or string.startswith('"'):
+      starting_quote = string[0]
+      closing_quote = string.find(string[0], 1)
       if closing_quote == -1:
         raise ValueError
       yield String(string[1:closing_quote])

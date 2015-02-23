@@ -21,41 +21,50 @@ def test_get_marker():
 def test_tokenizer():
   # all valid tokens
   for operator in ('==', '!=', '<=', '>=', '<', '>', 'in', 'not in'):
-    assert len(list(tokenize("python_version %s '2.7'" % operator))) == 3, (
+    assert len(list(tokenize(PyPy24, "python_version %s '2.7'" % operator))) == 3, (
         'Did not tokenize: %s' % operator)
 
 
-def test_evaluate():
-  # simple expressions
-  assert evaluate(PyPy24, "'ello' in 'hello'") is True
-  assert evaluate(PyPy24, "'2.6' < '2.7'") is True
-  assert evaluate(PyPy24, "'hello' not in 'ello'") is True
-  assert evaluate(PyPy24, "'2.7' >= '2.6'") is True
+EXPRESSIONS = (
+  # regular
+  "'ello' in 'hello'",
+  "'2.6' < '2.7'",
+  "'hello' not in 'ello'",
+  "'2.7' >= '2.6'",
 
   # opposites
-  assert evaluate(PyPy24, "'ello' not in 'hello'") is False
-  assert evaluate(PyPy24, "'2.6' > '2.7'") is False
-  assert evaluate(PyPy24, "'hello' in 'ello'") is False
-  assert evaluate(PyPy24, "'2.7' <= '2.6'") is False
+  "'ello' not in 'hello'",
+  "'2.6' > '2.7'",
+  "'hello' in 'ello'",
+  "'2.7' <= '2.6'",
 
   # involve subexprs
-  assert evaluate(PyPy24, "python_version == '2.7'") is True
-  assert evaluate(PyPy24, "python_version != '2.7'") is False
-  assert evaluate(PyPy24, "(python_version == '2.7')") is True
-  assert evaluate(PyPy24, "python_version in python_full_version") is True
+  "python_version == '2.7'",
+  "python_version != '2.7'",
+  "(python_version == '2.7')",
+  "python_version in python_full_version",
 
   # unary exprs
-  assert evaluate(PyPy24, "''") is False
-  assert evaluate(PyPy24, "'hello'") is True
-  assert evaluate(PyPy24, "implementation_name") is False
-  assert evaluate(PyPy24, "os_name") is True
+  "''",
+  "'hello'",
+  "implementation_name",
+  "os_name",
 
   # chained exprs
-  assert evaluate(PyPy24, "'' and 'hello'") is False
-  assert evaluate(PyPy24, "'' or 'hello'") is True
-  assert evaluate(PyPy24, "'hello' and ''") is False
-  assert evaluate(PyPy24, "'hello' or ''") is True
+  "'' and 'hello'",
+  "'' or 'hello'",
+  "'hello' and ''",
+  "'hello' or ''",
 
   # and/or precedence
-  assert evaluate(PyPy24, "'' or '' and 'true'") is (False or False and True)
-  assert evaluate(PyPy24, "'true' or '' and ''") is (True or False and False)
+  "'' or '' and 'true'",
+  "'true' or '' and ''",
+)
+
+
+def test_evaluate():
+  def real_eval(marker, expr):
+    return eval(' '.join(map(str, tokenize(marker, expr))))
+
+  for expr in EXPRESSIONS:
+    assert evaluate(PyPy24, expr) == bool(real_eval(PyPy24, expr)), 'Failed: %r' % expr

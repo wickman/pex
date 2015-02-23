@@ -57,50 +57,45 @@ parse_marker = PEP426Marker.from_lines
 
 
 class Token(object):
-  LPAREN = 0
-  RPAREN = 1
-  EQ = 2
-  NEQ = 3
-  LT = 4
-  GT = 5
-  LEQ = 6
-  GEQ = 7
-  IN = 8
-  NOTIN = 9
-  AND = 10
-  OR = 11
-  SUBEXPR = 12
-  STRING = 13
+  OPERATORS = ('not in', 'in', '==', '!=', '<=', '>=', '<', '>')
+  OTHER = ('(', ')', 'and', 'or')
 
-  def __init__(self, type, value=None):
-    self.type = type
+  # Sort tokens by length.
+  ALL = tuple(reversed(sorted(OPERATORS + OTHER, key=lambda token: len(token))))
+
+  def __init__(self, value):
+    if value not in self.ALL:
+      raise ValueError('Unknown token %r' % value)
     self.value = value
 
+  def is_operator(self):
+    return self.value in self.OPERATORS
 
-OTHER_TOKENS = (
-  ('(', Token.LPAREN),
-  (')', Token.RPAREN),
-  ('and', Token.AND),
-  ('or', Token.OR),
-)
+  def __eq__(self, other):
+    return isinstance(other, Token) and self.value == other.value
 
+  def __ne__(self, other):
+    return not isinstance(other, Token) or self.value != other.value
 
-OPERATOR_TOKENS = (
-  ('==', Token.EQ),
-  ('!=', Token.NEQ),
-  ('<=', Token.LEQ),
-  ('>=', Token.GEQ),
-  ('>', Token.GT),
-  ('<', Token.LT),
-  ('in', Token.IN),
-  ('not in', Token.NOTIN),
-)
+  def __str__(self):
+    return self.value
+
+  def __repr__(self):
+    return 'Token(%r)' % self.value
 
 
-OPERATORS = frozenset(op[1] for op in OPERATOR_TOKENS)
+class String(object):
+  def __init__(self, value):
+    self.value = value
+
+  def __eq__(self, other):
+    return isinstance(other, String) and self.value == other.value
+
+  def __str__(self):
+    return repr(self.value)
 
 
-def tokenize(string):
+def tokenize(marker, string):
   def get_subexpr():
     for subexpr, _ in PEP426_EXPRS:
       if string.startswith(subexpr):
@@ -113,7 +108,7 @@ def tokenize(string):
 
     subexpr = get_subexpr()
     if subexpr:
-      yield Token(Token.SUBEXPR, subexpr)
+      yield String(getattr(marker, subexpr, ''))
       string = string[len(subexpr):]
       continue
 
@@ -121,13 +116,13 @@ def tokenize(string):
       closing_quote = string.find("'", 1)
       if closing_quote == -1:
         raise ValueError
-      yield Token(Token.STRING, string[1:closing_quote])
+      yield String(string[1:closing_quote])
       string = string[closing_quote + 1:]
       continue
 
-    for substr, token in OTHER_TOKENS + OPERATOR_TOKENS:
+    for substr in Token.ALL:
       if string.startswith(substr):
-        yield Token(token)
+        yield Token(substr)
         string = string[len(substr):]
         break
     else:
@@ -138,18 +133,18 @@ def _reduce_statements(statements):
   # Given a stream of True/False <or/and> True/False <or/and> ... reduce to a truth
   # value while honoring and/or operator precedence.
   for k in reversed(range(len(statements))):
-    if statements[k] == Token.AND:
+    if statements[k] == Token('and'):
       statements[k - 1:k + 2] = [statements[k - 1] and statements[k + 1]]
   return any(statements[::2])
 
 
-def _split_statements(tag, tokens):
+def _split_statements(tokens):
   # Split tokens into a stream of True/False <operator> True/False <operator> ...
   offset = 0
   statements = []
 
   while True:
-    value, consumed = eval_expr(tag, tokens[offset:])
+    value, consumed = eval_expr(tokens[offset:])
     offset += consumed
 
     statements.append(bool(value))
@@ -163,8 +158,8 @@ def _split_statements(tag, tokens):
       raise ValueError
 
     # multiple expr
-    if tokens[offset].type in (Token.AND, Token.OR):
-      statements.append(tokens[offset].type)
+    if tokens[offset] in (Token('and'), Token('or')):
+      statements.append(tokens[offset])
       offset += 1
     else:
       # Must be an RPAREN?
@@ -173,64 +168,62 @@ def _split_statements(tag, tokens):
   return statements, offset
 
 
-def eval_marker(tag, tokens):
-  statements, offset = _split_statements(tag, tokens)
+def eval_marker(tokens):
+  statements, offset = _split_statements(tokens)
   return _reduce_statements(statements), offset
 
 
-def eval_expr(tag, tokens):
-  if tokens[0].type == Token.LPAREN:
-    value, offset = eval_marker(tag, tokens[1:])
-    if tokens[offset + 1].type != Token.RPAREN:
-      raise ValueError('Expected LPAREN to be matched by RPAREN, got %r' % tokens[offset + 1])
-    return value, offset + 2
+def eval_expr(tokens):
+  if isinstance(tokens[0], Token):
+    if tokens[0] == Token('('):
+      value, offset = eval_marker(tokens[1:])
+      if tokens[offset + 1] != Token(')'):
+        raise ValueError('Expected LPAREN to be matched by RPAREN, got %r' % tokens[offset + 1])
+      return value, offset + 2
+    else:
+      raise ValueError("Expression must start with '(' or String.")
   else:
-    return eval_subexpr(tag, tokens)
+    return eval_subexpr(tokens)
 
 
-def subexpr_value(tag, subexpr):
-  if subexpr.type == Token.SUBEXPR:
-    return getattr(tag, subexpr.value)
-  elif subexpr.type == Token.STRING:
-    return subexpr.value
-  else:
-    raise ValueError('subexpr_value expected a SUBEXPR or STRING, got type=%r' % subexpr.type)
-
-
-def eval_subexpr(tag, tokens):
+def eval_subexpr(tokens):
   expr0 = tokens[0]
-  expr0value = subexpr_value(tag, expr0)
+  if not isinstance(expr0, String):
+    raise ValueError
+  expr0value = expr0.value
 
-  if len(tokens) == 1 or tokens[1].type not in OPERATORS:
+  if len(tokens) == 1 or not tokens[1].is_operator():
     return bool(expr0value), 1
 
-  operator = tokens[1].type
+  operator = tokens[1]
 
   if len(tokens) < 3:
     raise ValueError('Unexpected end of token stream.')
 
   expr1 = tokens[2]
-  expr1value = subexpr_value(tag, expr1)
+  if not isinstance(expr1, String):
+    raise ValueError
+  expr1value = expr1.value
 
   return eval_subexpr_op(expr0value, operator, expr1value), 3
 
 
 def eval_subexpr_op(subexpr0, operator, subexpr1):
-  if operator == Token.EQ:
+  if operator == Token('=='):
     return subexpr0 == subexpr1
-  elif operator == Token.NEQ:
+  elif operator == Token('!='):
     return subexpr0 != subexpr1
-  elif operator == Token.LEQ:
+  elif operator == Token('<='):
     return subexpr0 <= subexpr1
-  elif operator == Token.GEQ:
+  elif operator == Token('>='):
     return subexpr0 >= subexpr1
-  elif operator == Token.GT:
+  elif operator == Token('>'):
     return subexpr0 > subexpr1
-  elif operator == Token.LT:
+  elif operator == Token('<'):
     return subexpr0 < subexpr1
-  elif operator == Token.IN:
+  elif operator == Token('in'):
     return subexpr0 in subexpr1
-  elif operator == Token.NOTIN:
+  elif operator == Token('not in'):
     return subexpr0 not in subexpr1
   raise ValueError
 
@@ -243,8 +236,14 @@ def evaluate(marker, expression):
       "python_version == '2.6' or python_version == '2.7'".
   """
 
-  token_stream = list(tokenize(expression))
-  value, _ = eval_marker(marker, token_stream)
+  # an alternative to implementing all the eval_* stuff is just
+  #
+  #     return eval(' '.join(map(str, tokenize(marker, expression))))
+  #
+  # this would rely upon the python intepreter to do the evaluation, which may or may not be
+  # desirable depending upon your tolerance for risk/security vuln/whatever.
+  token_stream = list(tokenize(marker, expression))
+  value, _ = eval_marker(token_stream)
   return value
 
 

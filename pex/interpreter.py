@@ -5,6 +5,7 @@
 
 from __future__ import absolute_import
 
+import inspect
 import os
 import re
 import subprocess
@@ -16,6 +17,7 @@ from pkg_resources import Distribution, Requirement, find_distributions
 from .base import maybe_requirement
 from .compatibility import string
 from .tracer import TraceLogger
+from . import pep426
 
 try:
   from numbers import Integral
@@ -223,6 +225,19 @@ class PythonInterpreter(object):
     return dict(iter_lines())
 
   @classmethod
+  def _execute_source(cls, binary, source, path_extras=None):
+    path_extras = path_extras or []
+    environ = cls.sanitized_environment()
+    environ['PYTHONPATH'] = ':'.join(path_extras)
+    po = subprocess.Popen(
+        [binary],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        env=environ)
+    so, _ = po.communicate(source)
+    return so
+
+  @classmethod
   def _from_binary_internal(cls, path_extras):
     def iter_extras():
       for item in sys.path + list(path_extras):
@@ -233,14 +248,7 @@ class PythonInterpreter(object):
 
   @classmethod
   def _from_binary_external(cls, binary, path_extras):
-    environ = cls.sanitized_environment()
-    environ['PYTHONPATH'] = ':'.join(path_extras)
-    po = subprocess.Popen(
-        [binary],
-        stdin=subprocess.PIPE,
-        stdout=subprocess.PIPE,
-        env=environ)
-    so, _ = po.communicate(ID_PY)
+    so = cls._execute_source(binary, ID_PY, path_extras)
     output = so.decode('utf8').splitlines()
     if len(output) == 0:
       raise cls.IdentificationError('Could not establish identity of %s' % binary)
@@ -249,6 +257,12 @@ class PythonInterpreter(object):
         binary,
         PythonIdentity.from_id_string(identity),
         extras=cls._parse_extras(extras))
+
+  @classmethod
+  def _pep426_marker(cls, binary):
+    pep426_source = inspect.getsource(pep426)
+    so = cls._execute_source(binary, pep426_source)
+    return pep426.parse_marker(so.splitlines())
 
   @classmethod
   def expand_path(cls, path):

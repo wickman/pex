@@ -57,20 +57,20 @@ parse_marker = PEP426Marker.from_lines
 
 
 class Token(object):
-  LPAREN  = 0
-  RPAREN  = 1
-  EQ      = 2
-  NEQ     = 3
-  LT      = 4
-  GT      = 5
-  LEQ     = 6
-  GEQ     = 7
-  IN      = 8
-  NOTIN   = 9
-  AND     = 10
-  OR      = 11
+  LPAREN = 0
+  RPAREN = 1
+  EQ = 2
+  NEQ = 3
+  LT = 4
+  GT = 5
+  LEQ = 6
+  GEQ = 7
+  IN = 8
+  NOTIN = 9
+  AND = 10
+  OR = 11
   SUBEXPR = 12
-  STRING  = 13
+  STRING = 13
 
   def __init__(self, type, value=None):
     self.type = type
@@ -101,8 +101,6 @@ OPERATORS = frozenset(op[1] for op in OPERATOR_TOKENS)
 
 
 def tokenize(string):
-  offset = 0
-
   def get_subexpr():
     for subexpr, _ in PEP426_EXPRS:
       if string.startswith(subexpr):
@@ -254,7 +252,7 @@ def __iter_marker_kv():
   for key, expr in PEP426_EXPRS:
     try:
       value = expr()
-    except:
+    except:  # noqa -- we must make this as safe as possible
       continue
     yield key, value
 
@@ -265,4 +263,4 @@ def get_marker():
 
 if __name__ == '__main__':
   for key, val in __iter_marker_kv():
-    print('%s:%s' % (key, value))
+    print('%s:%s' % (key, val))

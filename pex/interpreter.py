@@ -14,10 +14,10 @@ from collections import defaultdict
 
 from pkg_resources import Distribution, Requirement, find_distributions
 
+from . import pep426
 from .base import maybe_requirement
 from .compatibility import string
 from .tracer import TraceLogger
-from . import pep426
 
 try:
   from numbers import Integral

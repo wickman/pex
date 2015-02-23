@@ -1,11 +1,6 @@
 import textwrap
 
-from pex.pep426 import (
-    PEP426Marker,
-    get_marker,
-    evaluate,
-    tokenize,
-)
+from pex.pep426 import PEP426Marker, evaluate, get_marker, tokenize
 
 
 PyPy24 = PEP426Marker.from_lines(textwrap.dedent("""

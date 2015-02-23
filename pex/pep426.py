@@ -1,3 +1,10 @@
+# Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+"""
+Extract and evaluate PEP426 markers.
+"""
+
 import os
 import platform
 import sys
@@ -26,20 +33,27 @@ PEP426_EXPRS = (
 )
 
 
-PEP426Marker = namedtuple(
-    'PEP426Marker',
-    [name for name, _ in PEP426_EXPRS]
-)
+class PEP426Marker(namedtuple('PEP426Marker', [name for name, _ in PEP426_EXPRS])):
+  @classmethod
+  def from_lines(cls, lines):
+    markers = dict((expr_name, '') for expr_name, _ in PEP426_EXPRS)
+    for line in lines:
+      try:
+        expr_name, expr_value = line.split(':', 1)
+      except ValueError:
+        # This shouldn't happen but we cannot fail hard.
+        continue
+      markers[expr_name] = expr_value
+    return cls(**markers)
+
+  @classmethod
+  def from_kwargs(cls, **markers):
+    empty_markers = dict((expr_name, '') for expr_name, _ in PEP426_EXPRS)
+    empty_markers.update(markers)
+    return cls(**empty_markers)
 
 
-def parse_marker(lines):
-  markers = dict((expr_name, '') for expr_name in PEP426_EXPRS)
-
-  for line in lines:
-    expr_name, expr_value = line.split(':', 1)
-    markers[expr_name] = expr_value
-
-  return PEP426Marker(**markers)
+parse_marker = PEP426Marker.from_lines
 
 
 class Token(object):
@@ -89,13 +103,8 @@ OPERATORS = frozenset(op[1] for op in OPERATOR_TOKENS)
 def tokenize(string):
   offset = 0
 
-  def lookahead(substr):
-    if string[offset:].startswith(substr):
-      string = string[offset + len(substr):]
-      return True
-
   def get_subexpr():
-    for subexpr in SUBEXPRESSION_NAMES:
+    for subexpr, _ in PEP426_EXPRS:
       if string.startswith(subexpr):
         return subexpr
 
@@ -127,46 +136,48 @@ def tokenize(string):
       raise ValueError
 
 
-def eval_marker(tag, tokens):
+def _reduce_statements(statements):
+  # Given a stream of True/False <or/and> True/False <or/and> ... reduce to a truth
+  # value while honoring and/or operator precedence.
+  for k in reversed(range(len(statements))):
+    if statements[k] == Token.AND:
+      statements[k - 1:k + 2] = [statements[k - 1] and statements[k + 1]]
+  return any(statements[::2])
+
+
+def _split_statements(tag, tokens):
+  # Split tokens into a stream of True/False <operator> True/False <operator> ...
   offset = 0
-  values = []
-  operators = []
+  statements = []
 
   while True:
     value, consumed = eval_expr(tag, tokens[offset:])
     offset += consumed
 
-    values.append(value)
+    statements.append(bool(value))
 
     if len(tokens) == offset:
       # done
       break
+
     elif len(tokens) < offset:
       # not possible
       raise ValueError
 
     # multiple expr
     if tokens[offset].type in (Token.AND, Token.OR):
-      operators.append(tokens[offset])
+      statements.append(tokens[offset].type)
       offset += 1
     else:
-      break  # ?
+      # Must be an RPAREN?
+      break
 
-  # evaluate
-  aggregator = values.pop(0)
+  return statements, offset
 
-  while values:
-    value1 = values.pop(0)
-    operator = operators.pop()
 
-    if operator.type == Token.AND:
-      aggregator = aggregator and value1
-    elif operator.type == Token.OR:
-      aggregator = aggregator or value1
-    else:
-      raise ValueError
-
-  return aggregator, offset
+def eval_marker(tag, tokens):
+  statements, offset = _split_statements(tag, tokens)
+  return _reduce_statements(statements), offset
 
 
 def eval_expr(tag, tokens):
@@ -235,14 +246,23 @@ def evaluate(marker, expression):
   """
 
   token_stream = list(tokenize(expression))
-  value, _ = eval_marker(token_stream)
+  value, _ = eval_marker(marker, token_stream)
   return value
 
 
-if __name__ == '__main__':
+def __iter_marker_kv():
   for key, expr in PEP426_EXPRS:
     try:
       value = expr()
     except:
       continue
+    yield key, value
+
+
+def get_marker():
+  return PEP426Marker.from_kwargs(**dict(__iter_marker_kv()))
+
+
+if __name__ == '__main__':
+  for key, val in __iter_marker_kv():
     print('%s:%s' % (key, value))

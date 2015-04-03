@@ -29,10 +29,11 @@ class Iterator(object):
         cls.package_type_precedence(package, precedence=precedence),  # type preference
         package.local)  # prefer not fetching over the wire
 
-  def __init__(self, fetchers=None, crawler=None, precedence=None):
+  def __init__(self, fetchers=None, crawler=None, precedence=None, follow_links=False):
     self._crawler = crawler or Crawler()
     self._fetchers = fetchers or [PyPIFetcher()]
     self._precedence = precedence or self.DEFAULT_PACKAGE_PRECEDENCE
+    self._follow_links = follow_links
 
   def _translate_href(self, href):
     package = Package.from_href(href)
@@ -44,9 +45,9 @@ class Iterator(object):
   def iter_requirement_urls(self, req):
     return itertools.chain.from_iterable(fetcher.urls(req) for fetcher in self._fetchers)
 
-  def _iter_unordered(self, req, follow_links):
+  def _iter_unordered(self, req):
     url_iterator = self.iter_requirement_urls(req)
-    crawled_url_iterator = self._crawler.crawl(url_iterator, follow_links=follow_links)
+    crawled_url_iterator = self._crawler.crawl(url_iterator, follow_links=self._follow_links)
     for package in filter(None, map(self._translate_href, crawled_url_iterator)):
       if package.satisfies(req):
         yield package
@@ -55,7 +56,7 @@ class Iterator(object):
     key = lambda package: self.package_precedence(package, self._precedence)
     return sorted(package_list, key=key, reverse=True)
 
-  def iter(self, req, follow_links=False):
+  def iter(self, req):
     """Return a list of packages that satisfy the requirement in best match order."""
-    for package in self._sort(self._iter_unordered(req, follow_links)):
+    for package in self._sort(self._iter_unordered(req)):
       yield package

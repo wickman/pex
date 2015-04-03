@@ -5,17 +5,19 @@ import pytest
 from pkg_resources import Requirement
 from twitter.common.contextutil import temporary_dir
 
-from pex.fetcher import PyPIFetcher
-from pex.requirements import (
-    Resolvable,
-    ResolvableRepository,
-    ResolvablePackage,
-    ResolvableRequirement,
-    RequirementsTxt,
+from pex.base import (
     maybe_requirement,
     maybe_requirement_list,
     requirement_is_exact,
 )
+from pex.fetcher import PyPIFetcher
+from pex.resolvabe import (
+    Resolvable,
+    ResolvableRepository,
+    ResolvablePackage,
+    ResolvableRequirement,
+)
+from pex.requirements import RequirementsTxt
 
 
 def test_from_empty_lines():

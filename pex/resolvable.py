@@ -48,7 +48,7 @@ class Resolvable(AbstractClass):
   @abstractproperty
   def name(self):
     pass
-  
+
   @abstractproperty
   def exact(self):
     pass
@@ -73,7 +73,7 @@ class ResolvableRepository(Resolvable):
   @property
   def name(self):
     raise NotImplemented
-  
+
   @property
   def exact(self):
     return True
@@ -97,7 +97,7 @@ class ResolvablePackage(Resolvable):
   @property
   def name(self):
     return self.package.name
-  
+
   @property
   def exact(self):
     return True
@@ -118,14 +118,14 @@ class ResolvableRequirement(Resolvable):
 
   def __eq__(self, other):
     return isinstance(other, ResolvableRequirement) and self.requirement == other.requirement
-  
+
   def packages(self, finder):
     return list(finder.iter(self.requirement))
 
   @property
   def name(self):
     return self.requirement.key
-  
+
   @property
   def exact(self):
     return requirement_is_exact(self.requirement)

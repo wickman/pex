@@ -76,39 +76,39 @@ class ResolverOptions(object):
     self._allow_all_external = False
     self._allow_external = set()
     self._allow_unverified = set()
-  
+
   def add_index(self, index):
     self._fetchers.append(PyPIFetcher(index))
-  
+
   def add_repository(self, repo):
     self._fetchers.append(Fetcher([repo]))
-  
+
   def clear_indices(self):
     self._fetchers = [fetcher for fetcher in self._fetchers if not isinstance(fetcher, PyPIFetcher)]
-  
+
   def allow_all_external(self):
     self._allow_all_external = True
-  
+
   def allow_external(self, key):
     self._allow_external.add(safe_name(key).lower())
-  
+
   def allow_unverified(self, key):
     self._allow_unverified.add(safe_name(key).lower())
-  
+
   def allows_external(self, key):
     return self._allow_all_external or key in self._allow_external
-  
+
   def allows_unverified(self, key):
     return key in self._allow_unverified
-  
+
   # ---
-  
+
   def get_context(self, key):
     return Context.get()
-  
+
   def get_crawler(self, key):
     return Crawler(self.get_context(key))
-  
+
   def get_iterator(self, key):
     return Iterator(
         fetchers=self._fetchers,
@@ -116,7 +116,7 @@ class ResolverOptions(object):
         precedence=self._precedence,
         follow_links=self._options.allows_external(resolvable.name)
     )
-  
+
 
 
 class Resolver(object):
@@ -124,9 +124,9 @@ class Resolver(object):
   def from_requirements(cls, requirements_txt):
     rtxt = RequirementsTxt.from_file(requirements_txt)
     return cls(
-        
+
     )
-    
+
 
   def __init__(self,
                interpreter=None,
@@ -151,13 +151,13 @@ class Resolver(object):
     cache=None,        | pex only
     cache_ttl=None):   | pex only
     prerelease=False   | pex only
-    
+
     crawler
     | --allow-external
     | --allow-all-external
-    
+
     -----------
-    
+
     cache=True ==>
       fetchers updated
       iterator chained
@@ -165,7 +165,7 @@ class Resolver(object):
     self.__cache = cache
     self.__cache_ttl = cache_ttl
     self._distributions = _DistributionCache()
-  
+
   def __package_iterator(self, resolvable, existing=None):
     if existing is None:
       iterator = Iterator(
@@ -186,7 +186,7 @@ class Resolver(object):
   #     the package list complete.
   #   - If the requirement is not exact but a ttl is suppled, consider inexact matches so long
   #     as they were resolved fewer than ttl seconds ago.
-  #   - If none of the above are met, fall back to iterator.  
+  #   - If none of the above are met, fall back to iterator.
   def __package_iterator_cached(self, resolvable, existing=None):
     iterator = Iterator(
         fetchers=Fetcher([self.__cache]),
@@ -213,13 +213,13 @@ class Resolver(object):
     # no matches in the local cache
     #TRACER.log('Package cache miss: %s' % requirement, V=3)
     return self.__package_iterator(resolvable, existing=existing)
-  
+
   def __requires(self, package, extras):
     pass
 
   def resolve(self, resolvable, requirement_set=None):
     requirement_set = requirement_set or defaultdict(list)
-  
+
     while True:
       while requirements:
         requirement = requirements.pop(0)
@@ -242,7 +242,7 @@ class Resolver(object):
 
       if not requirements:
         break
-    
+
     return requirement_set
 
   """
@@ -268,7 +268,7 @@ class Resolver(object):
   requirement_set = defaultdict(list)
   processed_requirements = set()
   """
-    
+
   """
     requirements,
     fetchers=None,
@@ -285,7 +285,7 @@ class Resolver(object):
     precedence=None,
     cache=None,
     cache_ttl=None):
-    
+
     crawler
     | --allow-external
     | --allow-all-external
@@ -314,7 +314,7 @@ def resolve(
       cache=cache,
       cache_ttl=cache_ttl,
       options=ResolverOptions.default())
-  
+
   resolvables = [ResolvableRequirement.from_string(req) for req in requirements]
   return resolver.resolve(resolvables)
 

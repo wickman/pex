@@ -26,6 +26,7 @@ class Resolvable(AbstractClass):
         return resolvable_impl.from_string(resolvable_string)
       except cls.InvalidRequirement:
         continue
+    raise cls.InvalidRequirement('Unknown requirement type: %s' % resolvable_string)
 
   # @abstractmethod - Only available in Python 3.3+
   @classmethod
@@ -48,9 +49,13 @@ class Resolvable(AbstractClass):
   @abstractproperty
   def name(self):
     pass
-
+  
   @abstractproperty
   def exact(self):
+    pass
+  
+  @abstractmethod
+  def extras(self, interpreter=None):
     pass
 
 

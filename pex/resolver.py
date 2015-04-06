@@ -31,45 +31,119 @@ class Unsatisfiable(Exception):
   pass
 
 
-class _DistributionCache(object):
-  _ERROR_MSG = 'Expected %s but got %s'
-
-  def __init__(self):
-    self._translated_packages = {}
-
-  def has(self, package):
-    if not isinstance(package, Package):
-      raise ValueError(self._ERROR_MSG % (Package, package))
-    return package in self._translated_packages
-
-  def put(self, package, distribution):
-    if not isinstance(package, Package):
-      raise ValueError(self._ERROR_MSG % (Package, package))
-    if not isinstance(distribution, Distribution):
-      raise ValueError(self._ERROR_MSG % (Distribution, distribution))
-    self._translated_packages[package] = distribution
-
-  def get(self, package):
-    if not isinstance(package, Package):
-      raise ValueError(self._ERROR_MSG % (Package, package))
-    return self._translated_packages[package]
+class StaticIterator(IteratorInterface):
+  def __init__(self, packages):
+    self._packages = packages
+    
+  def iter(self, req):
+    for package in self._packages:
+      if package.satisfies(req):
+        yield package
 
 
-# Resolver.resolve() -> DistributionSet
-#
-#
-
+# All the state carried along for resolution.
 class ResolvableSet(object):
-  def __init__(self):
+  class Error(Exception): pass
+  class Unsatisfiable(Error): pass
 
-    self.__requirements = defaultdict(list)  # requirement.key => list of encountered requirements
-    self.__distributions = {}  # Package => Distribution
+  @classmethod
+  def filter_packages_by_interpreter(cls, packages, interpreter, platform):
+    pass
+  
+  @classmethod
+  def filter_packages_by_ttl(cls, packages, ttl):
+    pass
+
+  def __init__(self, cache=None, cache_ttl=None):
+    self.__resolvables = defaultdict(list)
+    self.__packages = defaultdict(list)
+    self.__distributions = {}
+    self.__cache = cache
+    self.__cache_ttl = cache_ttl
+    self.__cache_iterator = Iterator(fetchers=[Fetcher([self.__cache])])
+
+  def get_packages_cached(self, resolvable, interpreter, platform):
+    cached_packages = resolvable.packages(self.__cache_iterator)
+    cached_packages = self.filter_packages_by_interpreter(cached_packages, interpreter, platform)
+      
+    if cached_packages:
+      if resolvable.exact:
+        return cached_packages
+        
+      if self.__cache_ttl:
+        cached_packages = self.filter_packages_by_ttl(cached_packages, self.__cache_ttl)
+        if cached_packages:
+          return cached_packages
+    
+    return []
+
+  def add(self, resolvable, iterator, interpreter, platform):
+    """Add a resolvable using a specific package iterator."""
+    if resolvable in self.__resolvables[resolvable.name]:
+      return
+    
+    if self.__packages[resolvable.name]:
+      # there is an existing package set; constrain to it
+      iterator = StaticIterator(self.__packages[resolvable.name])
+    
+    cached_packages = self.get_packages_cached(resolvable, interpreter, platform)
+    if cached_packages:
+      self.__packages[resolvable.name] = cached_packages
+    else:
+      self.__packages[resolvable.name] = self.filter_packages_by_interpreter(
+          resolvable.packages(iterator), interpreter, platform)
+    
+    if not self.__packages[resolvable.name]:
+      raise self.Unsatisfiable('Could not satisfy all requirements:\n%s' % '\n'.join(
+          map(str, resolvable) for resolvable in self.__resolvables[resolvable.name]))
+  
+  def select(self):
+    """Returns a mapping of name => best package for resolvables in this ResolvableSet."""
+    return dict((name, packages[0]) for (name, packages) in self.__packages.items())
+
+  def extras(self, name):
+    return set.union(set(resolvable.extras) for resolvable in self.__resolvables[name])
+
+
+# All the state carried along for resolution.
+class ResolvableSet(object):
+  class Error(Exception): pass
+  class Unsatisfiable(Error): pass
+
+  def __init__(self):
+    self.__resolvables = defaultdict(set)
+    self.__packages = defaultdict(list)
+
+  def merge(self, resolvable, packages):
+    """Add a resolvable using a specific package iterator."""
+    self.__resolvables[resolvable.name].add(resolvable)
+    self.__packages[resolvable.name] = sorted(
+        set(packages).intersection(self.__packages[resolvable.name]))
+    if not self.__packages[resolvable.name]:
+      raise self.Unsatisfiable('Could not satisfy all requirements:\n%s' % '\n'.join(
+          map(str, resolvable) for resolvable in self.__resolvables[resolvable.name]))
+  
+  def get(self, name):
+    return list(self.__packages.get(name, []))  # make a copy
+  
+  def select(self):
+    """Returns a mapping of name => best package for resolvables in this ResolvableSet."""
+    return dict((name, packages[0]) for (name, packages) in self.__packages.items())
+
+  def extras(self, name):
+    return set.union(set(resolvable.extras) for resolvable in self.__resolvables[name])
 
 
 class ResolverOptions(object):
   @classmethod
   def from_requirements_txt(cls, requirements_txt):
-    pass
+    raise NotImplemented
+  
+  @classmethod
+  def default(cls):
+    default = cls()
+    default.add_index(PyPIFetcher.PYPI_BASE)
+    return default
 
   def __init__(self):
     self._fetchers = []
@@ -102,7 +176,6 @@ class ResolverOptions(object):
     return key in self._allow_unverified
 
   # ---
-
   def get_context(self, key):
     return Context.get()
 
@@ -114,24 +187,35 @@ class ResolverOptions(object):
         fetchers=self._fetchers,
         crawler=self.get_crawler(key),
         precedence=self._precedence,
-        follow_links=self._options.allows_external(resolvable.name)
+        allow_external=frozenset(self._allow_external),
+        allow_all_external=self._allow_all_external,
     )
 
 
 
 class Resolver(object):
+  class Error(Exception): pass
+  
   @classmethod
   def from_requirements(cls, requirements_txt):
     rtxt = RequirementsTxt.from_file(requirements_txt)
     return cls(
-
     )
 
+  @classmethod
+  def filter_packages_by_interpreter(cls, packages, interpreter, platform):
+    return [package for package in packages
+        if package.compatible(interpreter.identity, platform)]
+  
+  @classmethod
+  def filter_packages_by_ttl(cls, packages, ttl, now=None):
+    now = now if now is not None else time.time()
+    return [package for package in packages
+        if package.remote or package.local and (now - os.path.getmtime(package.path)) < ttl]
 
   def __init__(self,
                interpreter=None,
                platform=None,
-               context=None,
                translator=None,
                options=None):
     """
@@ -142,19 +226,19 @@ class Resolver(object):
     translator=None,
     interpreter=None,  | pex only
     platform=None,     | pex only
-    context=None,
+   *context=None,
       | --allow-insecure
       | --allow-unverified
     threads=1,
     precedence=None,
       | --no-use-wheel
     cache=None,        | pex only
-    cache_ttl=None):   | pex only
-    prerelease=False   | pex only
+    cache_ttl=None     | pex only
+    prerelease=False   | pex only --pre
 
-    crawler
-    | --allow-external
-    | --allow-all-external
+   *crawler
+      | --allow-external
+      | --allow-all-external
 
     -----------
 
@@ -164,159 +248,109 @@ class Resolver(object):
     """
     self.__cache = cache
     self.__cache_ttl = cache_ttl
-    self._distributions = _DistributionCache()
+    
+    #--
+    self._interpreter = interpreter or PythonInterpreter.get()
+    self._platform = platform or Platform.current()
+    self._translator = translator or Translator.default(interpreter=interpreter, platform=platform)
+    self._options = options or ResolverOptions.default()
+    
+    #--
+    self.__distributions = {}
 
   def __package_iterator(self, resolvable, existing=None):
-    if existing is None:
-      iterator = Iterator(
-          fetchers=self._fetchers,
-          crawler=self._crawler,
-          precedence=self._precedence,
-          follow_links=self._options.allows_external(resolvable.name))
-      existing = resolvable.packages(iterator)
+    if existing:
+      iterator = StaticIterator(existing)
+    else:
+      iterator = self._options.get_iterator(resolvable.name)
 
-    return [package for package in existing
-            #if package.satisfies(requirement) and
-            if package.compatible(interpreter.identity, platform)]
+    existing = resolvable.packages(iterator)
 
-  # A caching wrapper around packages_from_requirement
-  #
-  # The algorithm works as following:
-  #   - If the requirement is exact and we get a local match, short circuit and consider
-  #     the package list complete.
-  #   - If the requirement is not exact but a ttl is suppled, consider inexact matches so long
-  #     as they were resolved fewer than ttl seconds ago.
-  #   - If none of the above are met, fall back to iterator.
+    return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
+
   def __package_iterator_cached(self, resolvable, existing=None):
-    iterator = Iterator(
-        fetchers=Fetcher([self.__cache]),
-        crawler=self._crawler,
-        precedence=self._precedence,
-        follow_links=False)
+    iterator = Iterator(fetchers=Fetcher([self.__cache]))
     packages = resolvable.packages(iterator)
 
     if packages:
-      # match with exact requirement, always accept.
       if resolvable.exact:
-        #TRACER.log('Package cache hit: %s' % resolvable, V=3)
         return packages
-
-      # match with inexact requirement, consider if ttl supplied.
-      if ttl:
-        now = time.time()
-        packages = [package for package in packages if package.remote or package.local and
-            (now - os.path.getmtime(package.path)) < ttl]
+      
+      if self.__cache_ttl:
+        packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
         if packages:
-          #TRACER.log('Package cache hit (inexact): %s' % requirement, V=3)
           return packages
 
-    # no matches in the local cache
-    #TRACER.log('Package cache miss: %s' % requirement, V=3)
     return self.__package_iterator(resolvable, existing=existing)
 
-  def __requires(self, package, extras):
-    pass
+  def build(self, package):
+    if package not in self._distributions:
+      with TRACER.timed('Fetching %s' % package.url, V=2):
+        context = self._options.get_context()
+        local_package = Package.from_href(context.fetch(package, into=self.__cache))
+      if package.remote:
+        # this was a remote resolution -- so if we copy from remote to local but the
+        # local already existed, update the mtime of the local so that it is correct
+        # with respect to cache_ttl.
+        os.utime(local_package.path, None)
+      with TRACER.timed('Translating %s into distribution' % local_package.path, V=2):
+        dist = self._translator.translate(local_package, into=self.__cache)
+      if dist is None:
+        raise Untranslateable('Package %s is not translateable.' % package)
+      if not distribution_compatible(dist, self._interpreter, self._platform):
+        raise Untranslateable('Could not get distribution for %s on appropriate platform.' %
+            package)
+      self._distributions[package] = dist
+    return self._distributions[package]
+  
+  def requires(self, package, extras):
+    if package not in self._distributions:
+      with TRACER.timed('Fetching %s' % package.url, V=2):
+        context = self._options.get_context()
+        local_package = Package.from_href(context.fetch(package, into=self.__cache))
+      if package.remote:
+        # this was a remote resolution -- so if we copy from remote to local but the
+        # local already existed, update the mtime of the local so that it is correct
+        # with respect to cache_ttl.
+        os.utime(local_package.path, None)
+      with TRACER.timed('Translating %s into distribution' % local_package.path, V=2):
+        dist = self._translator.translate(local_package, into=self.__cache)
+      if dist is None:
+        raise Untranslateable('Package %s is not translateable.' % package)
+      if not distribution_compatible(dist, self._interpreter, self._platform):
+        raise Untranslateable('Could not get distribution for %s on appropriate platform.' %
+            package)
+      self._distributions[package] = dist
+    return [ResolvableRequirement(req) for req
+            in self._distributions[package].requires(extras=extras)]
 
-  def resolve(self, resolvable, requirement_set=None):
-    requirement_set = requirement_set or defaultdict(list)
+  def resolve(self, resolvables, requirement_set=None):
+    resolvable_set = resolvable_set or ResolvableSet()
+    processed_resolvables = set()
+    processed_packages = {}
+    distributions = []
+    
+    while resolvables:
+      while resolvables:
+        resolvable = resolvables.pop(0)
+        if resolvable in processed_resolvables:
+          continue
+        existing = resolvable_set.get(resolvable.name)
+        packages = self.__package_iterator_cached(resolvable, existing=existing)
+        resolvable_set.merge(resolvable, packages)
+        processed_resolvables.add(resolvable)
 
-    while True:
-      while requirements:
-        requirement = requirements.pop(0)
-        requirement_set[requirement.key].append(requirement)
-        distribution_list = distribution_set[requirement.key] = self.__package_iterator(
-            requirement, distributions)
-        if not distribution_list:
-          raise Unsatisfiable('Cannot satisfy requirements: %s' % requirement_set[requirement.key])
+      for resolvable_name, package in resolvable_set.select().items():
+        if resolvable_name in processed_packages:
+          if package != processed_packages[resolvable_name]:
+            raise self.Error('Ambiguous resolvable: %s' % resolvable_name)
+          continue
+        distribution = self.build(package)
+        resolvables.extend(ResolvableRequirement(req) for req in
+            distribution.requires(extras=resolvable_set.extras(resolvable_name)))
+        distributions.append(distribution)
 
-      # get their dependencies
-      for requirement_key, requirement_list in requirement_set.items():
-        new_requirements = OrderedSet()
-        highest_package = distribution_set[requirement_key][0]
-        for requirement in requirement_list:
-          if requirement in processed_requirements:
-            continue
-          new_requirements.update(requires(highest_package, requirement))
-          processed_requirements.add(requirement)
-        requirements.extend(list(new_requirements))
-
-      if not requirements:
-        break
-
-    return requirement_set
-
-  """
-  distributions = _DistributionCache()
-  interpreter = interpreter or PythonInterpreter.get()
-  platform = platform or Platform.current()
-  context = context or Context.get()
-  crawler = Crawler(context, threads=threads)
-  fetchers = fetchers[:] if fetchers is not None else [PyPIFetcher()]
-  translator = translator or Translator.default(interpreter=interpreter, platform=platform)
-
-  if cache:
-    local_fetcher = Fetcher([cache])
-    local_iterator = Iterator(fetchers=[local_fetcher], crawler=crawler, precedence=precedence)
-    package_iterator = partial(packages_from_requirement_cached, local_iterator, cache_ttl)
-  else:
-    package_iterator = packages_from_requirement
-
-  iterator = Iterator(fetchers=fetchers, crawler=crawler, precedence=precedence)
-
-  requirements = maybe_requirement_list(requirements)
-  distribution_set = defaultdict(list)
-  requirement_set = defaultdict(list)
-  processed_requirements = set()
-  """
-
-  """
-    requirements,
-    fetchers=None,
-      | --no-index
-      | -i / --index-url / --extra-index-url
-      | -f / --find-links
-    translator=None,
-      | --no-use-wheel
-    interpreter=None,  | pex only
-    platform=None,     | pex only
-    context=None,
-      | --allow-unverified
-    threads=1,
-    precedence=None,
-    cache=None,
-    cache_ttl=None):
-
-    crawler
-    | --allow-external
-    | --allow-all-external
-  """
-
-
-def resolve(
-    requirements,
-    fetchers=None,
-    translator=None,
-    interpreter=None,
-    platform=None,
-    context=None,
-    threads=1,
-    precedence=None,
-    cache=None,
-    cache_ttl=None):
-
-  resolver = Resolver(
-      translator=translator,
-      interpreter=interpreter,
-      platform=platform,
-      context=context,
-      threads=threads,
-      precedence=precedence,
-      cache=cache,
-      cache_ttl=cache_ttl,
-      options=ResolverOptions.default())
-
-  resolvables = [ResolvableRequirement.from_string(req) for req in requirements]
-  return resolver.resolve(resolvables)
+    return distributions
 
 
 def resolve(
@@ -381,76 +415,64 @@ def resolve(
     The optional ``obtainer`` keyword was replaced by ``fetchers``, ``translator``, ``context``,
     ``threads``, ``precedence``, ``cache`` and ``cache_ttl``, also all optional keywords.
   """
-  distributions = _DistributionCache()
-  interpreter = interpreter or PythonInterpreter.get()
-  platform = platform or Platform.current()
-  context = context or Context.get()
-  crawler = Crawler(context, threads=threads)
-  fetchers = fetchers[:] if fetchers is not None else [PyPIFetcher()]
-  translator = translator or Translator.default(interpreter=interpreter, platform=platform)
 
-  if cache:
-    local_fetcher = Fetcher([cache])
-    local_iterator = Iterator(fetchers=[local_fetcher], crawler=crawler, precedence=precedence)
-    package_iterator = partial(packages_from_requirement_cached, local_iterator, cache_ttl)
-  else:
-    package_iterator = packages_from_requirement
+  resolver = Resolver(
+      translator=translator,
+      interpreter=interpreter,
+      platform=platform,
+      context=context,
+      #threads=threads,
+      #precedence=precedence,
+      #cache=cache,
+      #cache_ttl=cache_ttl,
+      options=ResolverOptions.default())
 
-  iterator = Iterator(fetchers=fetchers, crawler=crawler, precedence=precedence)
+  resolvables = [ResolvableRequirement.from_string(req) for req in requirements]
+  return resolver.resolve(resolvables)
 
-  requirements = maybe_requirement_list(requirements)
-  distribution_set = defaultdict(list)
-  requirement_set = defaultdict(list)
-  processed_requirements = set()
 
-  def requires(package, requirement):
-    if not distributions.has(package):
-      with TRACER.timed('Fetching %s' % package.url, V=2):
-        local_package = Package.from_href(context.fetch(package, into=cache))
-      if package.remote:
-        # this was a remote resolution -- so if we copy from remote to local but the
-        # local already existed, update the mtime of the local so that it is correct
-        # with respect to cache_ttl.
-        os.utime(local_package.path, None)
-      with TRACER.timed('Translating %s into distribution' % local_package.path, V=2):
-        dist = translator.translate(local_package, into=cache)
-      if dist is None:
-        raise Untranslateable('Package %s is not translateable.' % package)
-      if not distribution_compatible(dist, interpreter, platform):
-        raise Untranslateable('Could not get distribution for %s on appropriate platform.' %
-            package)
-      distributions.put(package, dist)
-    dist = distributions.get(package)
-    return dist.requires(extras=requirement.extras)
-
-  while True:
-    while requirements:
-      requirement = requirements.pop(0)
-      requirement_set[requirement.key].append(requirement)
-      distribution_list = distribution_set[requirement.key] = package_iterator(
-          iterator,
-          requirement,
-          interpreter,
-          platform,
-          existing=distribution_set.get(requirement.key))
-      if not distribution_list:
-        raise Unsatisfiable('Cannot satisfy requirements: %s' % requirement_set[requirement.key])
-
-    # get their dependencies
-    for requirement_key, requirement_list in requirement_set.items():
-      new_requirements = OrderedSet()
-      highest_package = distribution_set[requirement_key][0]
-      for requirement in requirement_list:
-        if requirement in processed_requirements:
-          continue
-        new_requirements.update(requires(highest_package, requirement))
-        processed_requirements.add(requirement)
-      requirements.extend(list(new_requirements))
-
-    if not requirements:
-      break
-
-  to_activate = set()
-  for distribution_list in distribution_set.values():
-    to_activate.add(distributions.get(distribution_list[0]))
-  return to_activate
+# resolvable_set
+#   name => requirement version(s)
+#   name => packages
+#
+# resolvable:
+#    https://../foo-2.0.3.tar.gz
+#    git://asdfasdf/#egg=MyThing
+#    Flask>=3.2
+#    .
+#
+# any of which can take a [extra1,extra2,...] at the end
+#
+# .as_requirement
+# for local path would require packaging first (sdist)
+# 
+# so we just need .as_requirement
+# to do so for vcs/unpackaged local paths, we need to [clone+]package
+#
+# resolvable1,...,resolvableN
+#
+# resolvable1 [name1] => [package1_1, ..., package1_N]
+# resolvable2 [name2] => [package2_1]
+# resolvable3 [name3] => [package3_1, ..., package3_N]
+#
+# name1 => resolvable1 => []
+# name2 => resolvable2 => []
+# name3 => resolvable3 resolvable4 => [] 
+#
+# process each resolvable
+#
+# name1 => resolvable1* => [package1_1, ..., package1_N]
+# name2 => resolvable2* => [package2_1]
+# name3 => resolvable3* resolvable4* => [package3_1, package3_2, package3_3]
+#
+# select top packages, which produce more resolvables:
+#
+# name1 => resolvable1* resolvable5 => [package1_1*, ..., package1_N]
+# name2 => resolvable2* => [package2_1*]
+# name3 => resolvable3* resolvable4* => [package3_1*, package3_2, package3_3] 
+# name4 => resolvable6 => []
+# name5 => resolvable7 => []
+#
+# process each new resolvable
+#
+# until no more new resolvables.

@@ -21,6 +21,7 @@ from .orderedset import OrderedSet
 from .package import Package, distribution_compatible
 from .platforms import Platform
 from .resolvable import ResolvableRequirement
+from .sorter import Sorter
 from .tracer import TRACER
 from .translator import Translator
 
@@ -36,7 +37,7 @@ class Unsatisfiable(Exception):
 class StaticIterator(IteratorInterface):
   def __init__(self, packages):
     self._packages = packages
-    
+
   def iter(self, req):
     for package in self._packages:
       if package.satisfies(req):
@@ -55,98 +56,114 @@ class ResolvableSet(object):
     """Add a resolvable and its resolved packages."""
     self.__resolvables[resolvable.name].add(resolvable)
     if self.__packages[resolvable.name]:
-      self.__packages[resolvable.name] = sorted(
+      self.__packages[resolvable.name] = (
           set(packages).intersection(self.__packages[resolvable.name]))
     else:
-      self.__packages[resolvable.name] = sorted(packages)
+      self.__packages[resolvable.name] = set(packages)
     if not self.__packages[resolvable.name]:
       raise self.Unsatisfiable('Could not satisfy all requirements:\n%s' % '\n'.join(
           map(str, self.__resolvables[resolvable.name])))
-  
+
   def get(self, name):
     return list(self.__packages.get(name, []))  # make a copy
-  
-  def select(self):
+
+  def packages(self):
     """Returns a mapping of name => best package for resolvables in this ResolvableSet."""
-    return dict((name, packages[0]) for (name, packages) in self.__packages.items())
+    return self.__packages.copy()
 
   def extras(self, name):
     return set.union(*[set(resolvable.extras()) for resolvable in self.__resolvables[name]])
 
 
-class ResolverOptions(object):
-  @classmethod
-  def from_requirements_txt(cls, requirements_txt):
-    raise NotImplemented
-  
-  @classmethod
-  def default(cls):
-    default = cls()
-    default.add_index(PyPIFetcher.PYPI_BASE)
-    return default
-
+class ResolverOptionsBuilder(object):
   def __init__(self):
-    self._fetchers = []
+    self._fetchers = [PyPIFetcher()]
     self._allow_all_external = False
     self._allow_external = set()
     self._allow_unverified = set()
-    self._precedence = Iterator.DEFAULT_PACKAGE_PRECEDENCE
+    self._precedence = Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = Context.get()
 
   def add_index(self, index):
     self._fetchers.append(PyPIFetcher(index))
+    return self
 
   def add_repository(self, repo):
     self._fetchers.append(Fetcher([repo]))
+    return self
 
   def clear_indices(self):
     self._fetchers = [fetcher for fetcher in self._fetchers if not isinstance(fetcher, PyPIFetcher)]
+    return self
 
   def allow_all_external(self):
     self._allow_all_external = True
+    return self
 
   def allow_external(self, key):
     self._allow_external.add(safe_name(key).lower())
+    return self
 
   def allow_unverified(self, key):
     self._allow_unverified.add(safe_name(key).lower())
+    return self
 
-  def allows_external(self, key):
-    return self._allow_all_external or key in self._allow_external
-
-  def allows_unverified(self, key):
-    return key in self._allow_unverified
-  
   def no_use_wheel(self):
     self._precedence = (EggPackage, SourcePackage)
-  
-  # --
+    return self
+
   def set_context(self, context):
     self._context = context
-  
+    return self
+
   def set_precedence(self, precedence):
     self._precedence = precedence
-  
-  # ---
+    return self
+
+  def build(self):
+    return ResolverOptions(
+        fetchers,
+        allow_all_external,
+        allow_external,
+        allow_unverified,
+        precedence,
+    )
+
+
+class ResolverOptions(object):
+  def __init__(self,
+               fetchers=None,
+               allow_all_external=False,
+               allow_external=frozenset(),
+               allow_unverified=frozenset(),
+               precedence=None):
+    self._fetchers = fetchers or [PyPIFetcher()]
+    self._allow_all_external = allow_all_external
+    self._allow_external = allow_external
+    self._allow_unverified = allow_unverified
+    self._precedence = precedence or Sorter.DEFAULT_PACKAGE_PRECEDENCE
+    self._context = Context.get()  # XXX #58
+
   def get_context(self, key):
     return self._context
 
   def get_crawler(self, key):
     return Crawler(self.get_context(key))
 
+  def get_sorter(self):
+    return Sorter(self._precedence)
+
   def get_iterator(self, key):
     return Iterator(
         fetchers=self._fetchers,
         crawler=self.get_crawler(key),
-        precedence=self._precedence,
-        #allow_external=frozenset(self._allow_external),
-        #allow_all_external=self._allow_all_external,
+        follow_links=self._allow_all_external or key in self._allow_external,
     )
 
 
 class Resolver(object):
   class Error(Exception): pass
-  
+
   @classmethod
   def from_requirements(cls, requirements_txt):
     rtxt = RequirementsTxt.from_file(requirements_txt)
@@ -157,7 +174,7 @@ class Resolver(object):
   def filter_packages_by_interpreter(cls, packages, interpreter, platform):
     return [package for package in packages
         if package.compatible(interpreter.identity, platform)]
-  
+
   def __init__(self,
                interpreter=None,
                platform=None,
@@ -166,7 +183,7 @@ class Resolver(object):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = platform or Platform.current()
     self._translator = translator or Translator.default(interpreter=interpreter, platform=platform)
-    self._options = options or ResolverOptions.default()
+    self._options = options or ResolverOptions()
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
@@ -188,25 +205,29 @@ class Resolver(object):
       raise Untranslateable('Could not get distribution for %s on appropriate platform.' %
           package)
     return dist
-  
+
   def resolve(self, resolvables, resolvable_set=None):
     resolvables = list(resolvables)
     resolvable_set = resolvable_set or ResolvableSet()
     processed_resolvables = set()
     processed_packages = {}
     distributions = {}
-    
+    sorter = self._options.get_sorter()
+
     while resolvables:
       while resolvables:
         resolvable = resolvables.pop(0)
         if resolvable in processed_resolvables:
           continue
-        existing = resolvable_set.get(resolvable.name)
-        packages = self.package_iterator(resolvable, existing=existing)
+        packages = self.package_iterator(resolvable, existing=resolvable_set.get(resolvable.name))
         resolvable_set.merge(resolvable, packages)
         processed_resolvables.add(resolvable)
 
-      for resolvable_name, package in resolvable_set.select().items():
+      packages = dict(
+          (name, sorter.sort(packages)[0])
+          for (name, packages) in resolvable_set.packages().items())
+
+      for resolvable_name, package in packages.items():
         if resolvable_name in processed_packages:
           if package != processed_packages[resolvable_name]:
             raise self.Error('Ambiguous resolvable: %s' % resolvable_name)
@@ -223,7 +244,7 @@ class Resolver(object):
 
 class CachingResolver(Resolver):
   class Error(Exception): pass
-  
+
   @classmethod
   def filter_packages_by_ttl(cls, packages, ttl, now=None):
     now = now if now is not None else time.time()
@@ -236,13 +257,14 @@ class CachingResolver(Resolver):
     super(CachingResolver, self).__init__(*args, **kw)
 
   def package_iterator(self, resolvable, existing=None):
+    sorter = self._options.get_sorter()
     iterator = Iterator(fetchers=[Fetcher([self.__cache])])
-    packages = resolvable.packages(iterator)
+    packages = sorter.sort(resolvable.packages(iterator))
 
     if packages:
       if resolvable.exact:
         return packages
-      
+
       if self.__cache_ttl:
         packages = self.filter_packages_by_ttl(packages, self.__cache_ttl)
         if packages:
@@ -263,6 +285,7 @@ class CachingResolver(Resolver):
     if not os.path.exists(target):
       shutil.copyfile(dist.location, target + '~')
       os.rename(target + '~', target)
+    os.utime(target, None)
     return dist
 
 
@@ -283,14 +306,14 @@ def resolve(
     options.set_context(context)
   if precedence:
     options.set_precedence(precedence)
-  
+
   keywords = dict(
-    translator=translator,
-    interpreter=interpreter,
-    platform=platform,
-    options=options,
+      translator=translator,
+      interpreter=interpreter,
+      platform=platform,
+      options=options,
   )
-  
+
   if cache:
     resolver = CachingResolver(cache, cache_ttl, **keywords)
   else:

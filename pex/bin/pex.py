@@ -381,7 +381,7 @@ def translator_from_options(interpreter, options):
   return ChainedTranslator(*translators)
 
 
-def build_pex(args, options):
+def build_pex(resolvables, options):
   with TRACER.timed('Resolving interpreter', V=2):
     interpreter = interpreter_from_options(options)
 
@@ -410,7 +410,7 @@ def build_pex(args, options):
   else:
     precedence = (EggPackage, SourcePackage)
 
-  requirements = [ResolvableRequirement.from_string(req) for req in args]
+  requirements = [ResolvableRequirement.from_string(req) for req in resolvables]
 
   if options.source_dirs:
     temporary_package_root = safe_mkdtemp()
@@ -461,10 +461,22 @@ def main():
   parser = configure_clp()
   options, args = parser.parse_args()
 
-  with TraceLogger.env_override(PEX_VERBOSE=options.verbosity):
+  if options.verbosity:
+    log('options:%s' % options)
 
+  try:
+    separator = args.index('--')
+    reqs, args = args[:separator], args[separator + 1:]
+  except ValueError:
+    reqs, args = args, []
+
+  if options.verbosity:
+    log('reqs:%s' % reqs)
+    log('args:%s' % args)
+
+  with TraceLogger.env_override(PEX_VERBOSE=options.verbosity):
     with TRACER.timed('Building pex'):
-      pex_builder = build_pex(args, options)
+      pex_builder = build_pex(reqs, options)
 
     if options.pex_name is not None:
       log('Saving PEX file to %s' % options.pex_name, v=options.verbosity)

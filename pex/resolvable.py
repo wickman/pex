@@ -51,11 +51,11 @@ class Resolvable(AbstractClass):
   @abstractproperty
   def name(self):
     pass
-  
+
   @abstractproperty
   def exact(self):
     pass
-  
+
   @abstractmethod
   def extras(self, interpreter=None):
     pass
@@ -109,6 +109,9 @@ class ResolvablePackage(Resolvable):
   def exact(self):
     return True
 
+  def __str__(self):
+    return str(self.package)
+
 
 class ResolvableRequirement(Resolvable):
   # A Requirement wrapper
@@ -136,9 +139,12 @@ class ResolvableRequirement(Resolvable):
   @property
   def exact(self):
     return requirement_is_exact(self.requirement)
-  
+
   def extras(self, interpreter=None):
     return self.requirement.extras
+
+  def __str__(self):
+    return str(self.requirement)
 
 
 Resolvable.register(ResolvableRepository)

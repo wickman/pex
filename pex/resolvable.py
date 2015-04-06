@@ -1,3 +1,5 @@
+from abc import abstractmethod, abstractproperty
+
 from .base import maybe_requirement, requirement_is_exact
 from .compatibility import AbstractClass, string as compatibility_string
 from .package import Package
@@ -134,6 +136,9 @@ class ResolvableRequirement(Resolvable):
   @property
   def exact(self):
     return requirement_is_exact(self.requirement)
+  
+  def extras(self, interpreter=None):
+    return self.requirement.extras
 
 
 Resolvable.register(ResolvableRepository)

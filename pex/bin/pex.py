@@ -27,6 +27,8 @@ from pex.package import EggPackage, Package, SourcePackage, WheelPackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
+#from pex.resolvable import Resolvable
+from pex.resolvable import ResolvableRequirement
 from pex.resolver import resolve as requirement_resolver
 from pex.tracer import TRACER, TraceLogger
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
@@ -408,7 +410,7 @@ def build_pex(args, options):
   else:
     precedence = (EggPackage, SourcePackage)
 
-  requirements = options.requirements[:]
+  requirements = [ResolvableRequirement.from_string(req) for req in args]
 
   if options.source_dirs:
     temporary_package_root = safe_mkdtemp()
@@ -421,7 +423,8 @@ def build_pex(args, options):
 
       # record the requirement information
       sdist_pkg = Package.from_href(sdist)
-      requirements.append('%s==%s' % (sdist_pkg.name, sdist_pkg.raw_version))
+      requirements.append(
+          ResolvableRequirement.from_string('%s==%s' % (sdist_pkg.name, sdist_pkg.raw_version)))
 
       # copy the source distribution
       shutil.copyfile(sdist, os.path.join(temporary_package_root, os.path.basename(sdist)))

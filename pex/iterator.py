@@ -1,6 +1,7 @@
 import itertools
+from abc import abstractmethod
 
-from .compatibility import Interface
+from .compatibility import AbstractClass
 from .crawler import Crawler
 from .fetcher import PyPIFetcher
 from .package import EggPackage, Package, SourcePackage, WheelPackage
@@ -41,18 +42,21 @@ class Iterator(IteratorInterface):
                fetchers=None,
                crawler=None,
                precedence=None,
-               allow_external=frozenset(),
-               allow_all_external=False):
+               follow_links=False):
+               #allow_external=frozenset(),
+               #allow_all_external=False):
     self._crawler = crawler or Crawler()
     self._fetchers = fetchers or [PyPIFetcher()]
     self._precedence = precedence or self.DEFAULT_PACKAGE_PRECEDENCE
-    self._allow_external = allow_external
-    self._allow_all_external = allow_all_external
+    self.__follow_links = follow_links
+    #self._allow_external = allow_external
+    #self._allow_all_external = allow_all_external
 
   def _follow_links(self, req):
-    if self._allow_all_external:
-      return True
-    return req.key in self._allow_external
+    #if self._allow_all_external:
+    #  return True
+    #return req.key in self._allow_external
+    return self.__follow_links
 
   def _translate_href(self, href):
     package = Package.from_href(href)

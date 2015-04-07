@@ -91,6 +91,9 @@ class ResolvableRepository(Resolvable):
   def exact(self):
     return True
 
+  def extras(self, interpreter=None):
+    return []
+
 
 class ResolvablePackage(Resolvable):
   """A package (.tar.gz, .egg, .whl, etc) resolvable."""
@@ -106,7 +109,7 @@ class ResolvablePackage(Resolvable):
     self.package = package
 
   def packages(self, finder):
-    return self.package
+    return [self.package]
 
   @property
   def name(self):
@@ -115,6 +118,9 @@ class ResolvablePackage(Resolvable):
   @property
   def exact(self):
     return True
+
+  def extras(self, interpreter=None):
+    return []
 
   def __hash__(self):
     return hash(self.package)

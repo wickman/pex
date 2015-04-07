@@ -68,7 +68,7 @@ class Resolvable(AbstractClass):
 
 
 class ResolvableRepository(Resolvable):
-  # A 'git+', 'svn+', 'hg+', 'bzr+' project.  Not supported.
+  """A VCS repository resolvable, e.g. 'git+', 'svn+', 'hg+', 'bzr+' packages."""
 
   COMPATIBLE_VCS = frozenset(['git', 'svn', 'hg', 'bzr'])
 
@@ -93,8 +93,8 @@ class ResolvableRepository(Resolvable):
 
 
 class ResolvablePackage(Resolvable):
+  """A package (.tar.gz, .egg, .whl, etc) resolvable."""
 
-  # A Package (either local or remote)
   @classmethod
   def from_string(cls, requirement_string):
     package = Package.from_href(requirement_string)
@@ -121,8 +121,8 @@ class ResolvablePackage(Resolvable):
 
 
 class ResolvableRequirement(Resolvable):
+  """A requirement (e.g. 'setuptools', 'Flask>=0.8,<0.9', 'pex[whl]')."""
 
-  # A Requirement wrapper
   @classmethod
   def from_string(cls, requirement_string):
     try:
@@ -160,7 +160,15 @@ Resolvable.register(ResolvablePackage)
 Resolvable.register(ResolvableRequirement)
 
 
+# TODO(wickman) maybe have Resolvable.from_concrete and delegate to that.
 def resolvables_from_iterable(iterable):
+  """Given an iterable of resolvable-like objects, return list of Resolvable objects.
+
+  :param iterable: An iterable of :class:`Resolvable`, :class:`Requirement`, :class:`Package`,
+      or `str` to map into an iterable of :class:`Resolvable` objects.
+  :returns: A list of :class:`Resolvable` objects.
+  """
+
   def translate(obj):
     if isinstance(obj, Resolvable):
       return obj

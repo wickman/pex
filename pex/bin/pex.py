@@ -437,7 +437,6 @@ def build_pex(args, options, resolver_option_builder):
 
   resolver_options = resolver_option_builder.build()
   resolver_kwargs = dict(
-      translator=resolver_options.get_translator(interpreter, options.platform),
       interpreter=interpreter,
       platform=options.platform,
       options=resolver_options,

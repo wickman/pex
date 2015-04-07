@@ -1,3 +1,6 @@
+# Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 import os
 from textwrap import dedent
 
@@ -5,15 +8,8 @@ import pytest
 from pkg_resources import Requirement, safe_name
 from twitter.common.contextutil import temporary_dir
 
-from pex.fetcher import PyPIFetcher
 from pex.requirements import requirements_from_file, requirements_from_lines
-from pex.resolvable import (
-    Resolvable,
-    ResolvablePackage,
-    ResolvableRepository,
-    ResolvableRequirement
-)
-from pex.resolver import ResolverOptions, ResolverOptionsBuilder
+from pex.resolvable import ResolvableRequirement
 
 
 def test_from_empty_lines():

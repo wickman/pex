@@ -1,3 +1,6 @@
+# Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 from pex.resolvable import (
     Resolvable,
     ResolvablePackage,
@@ -7,4 +10,7 @@ from pex.resolvable import (
 
 
 def test_noop():
-  pass
+  Resolvable
+  ResolvablePackage
+  ResolvableRepository
+  ResolvableRequirement

@@ -124,9 +124,9 @@ class ResolverOptionsBuilder(object):
 
   def no_use_wheel(self):
     self._precedence = tuple(
-        [precedent for precedent in self._precedence if precedence is not WheelPackage])
+        [precedent for precedent in self._precedence if precedent is not WheelPackage])
     return self
-  
+
   def allow_builds(self):
     if SourcePackage not in self._precedence:
       self._precedence = self._precedence + (SourcePackage,)
@@ -134,7 +134,7 @@ class ResolverOptionsBuilder(object):
 
   def no_allow_builds(self):
     self._precedence = tuple(
-        [precedent for precedent in self._precedence if precedence is not SourcePackage])
+        [precedent for precedent in self._precedence if precedent is not SourcePackage])
     return self
 
   def set_context(self, context):
@@ -180,7 +180,7 @@ class ResolverOptions(object):
 
   def get_translator(self, interpreter, platform):
     translators = []
-    
+
     # ugh
     for package in self._precedence:
       if package is WheelPackage:
@@ -190,7 +190,7 @@ class ResolverOptions(object):
       elif package is SourcePackage:
         installer_impl = WheelInstaller if WheelPackage in self._precedence else EggInstaller
         translators.append(SourceTranslator(installer_impl=installer_impl, interpreter=interpreter))
-    
+
     return ChainedTranslator(*translators)
 
   def get_iterator(self, key):

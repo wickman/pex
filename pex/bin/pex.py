@@ -18,20 +18,19 @@ from pex.archiver import Archiver
 from pex.base import maybe_requirement
 from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
 from pex.crawler import Crawler
-from pex.fetcher import Fetcher, PyPIFetcher
+from pex.fetcher import PyPIFetcher
 from pex.http import Context
-from pex.installer import EggInstaller, Packager, WheelInstaller
+from pex.installer import EggInstaller, InstallerBase, Packager
 from pex.interpreter import PythonInterpreter
 from pex.iterator import Iterator
-from pex.package import EggPackage, Package, SourcePackage, WheelPackage
+from pex.package import EggPackage, Package, SourcePackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
-from pex.resolvable import Resolvable, ResolvableRequirement, ResolvablePackage
-from pex.resolver import Resolver, CachingResolver, ResolverOptionsBuilder
+from pex.resolvable import Resolvable, ResolvablePackage
+from pex.resolver import CachingResolver, Resolver, ResolverOptionsBuilder
 from pex.tracer import TRACER, TraceLogger
-from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 from pex.version import __setuptools_requirement, __version__, __wheel_requirement
 
 CANNOT_DISTILL = 101
@@ -74,7 +73,7 @@ def process_find_links(option, option_str, option_value, parser, builder):
   builder.add_repository(option_value)
 
 
-def process_index_url(_, option_str, option_value, __, builder):
+def process_index_url(option, option_str, option_value, parser, builder):
   indices = getattr(parser.values, option.dest, [])
   indices.append(PyPIFetcher(option_value))
   setattr(parser.values, option.dest, indices)
@@ -254,7 +253,7 @@ def configure_clp():
       'sources, requirements, their dependencies and other options.')
 
   parser = OptionParser(usage=usage, version='%prog {0}'.format(__version__))
-  
+
   resolver_options_builder = ResolverOptionsBuilder()
   configure_clp_pex_resolution(parser, resolver_options_builder)
   configure_clp_pex_options(parser)
@@ -428,8 +427,6 @@ def build_pex(args, options, resolver_option_builder):
   resolvables.extend(options.resolvables)
 
   if options.source_dirs:
-    temporary_package_root = safe_mkdtemp()
-
     for source_dir in options.source_dirs:
       try:
         sdist = Packager(source_dir, interpreter=interpreter).sdist()
@@ -445,7 +442,7 @@ def build_pex(args, options, resolver_option_builder):
       platform=options.platform,
       options=resolver_options,
   )
-  
+
   if options.cache_dir:
     resolver = CachingResolver(options.cache_dir, options.cache_ttl, **resolver_kwargs)
   else:

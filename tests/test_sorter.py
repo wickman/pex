@@ -1,4 +1,7 @@
-from pkg_resources import Requirement, get_build_platform
+# Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+from pkg_resources import get_build_platform
 
 from pex.interpreter import PythonInterpreter
 from pex.package import EggPackage, SourcePackage, WheelPackage
@@ -32,7 +35,6 @@ def test_sorter_sort():
   whl = WheelPackage('psutil-0.6.1-cp%s-none-%s.whl' % (
       pi.python.replace('.', ''),
       get_build_platform().replace('-', '_').replace('.', '_').lower()))
-  req = Requirement.parse('psutil')
 
   assert Sorter().sort([tgz, egg, whl]) == [whl, egg, tgz]
   assert Sorter().sort([egg, tgz, whl]) == [whl, egg, tgz]

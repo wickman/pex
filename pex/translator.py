@@ -45,7 +45,7 @@ class ChainedTranslator(TranslatorBase):
       dist = tx.translate(package, into=into)
       if dist:
         return dist
-  
+
   def __str__(self):
     return 'ChainedTranslator(%s)' % (', '.join(map(repr, tx) for tx in self._translators))
 

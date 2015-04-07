@@ -1,3 +1,6 @@
+# Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
+# Licensed under the Apache License, Version 2.0 (see LICENSE).
+
 from abc import abstractmethod, abstractproperty
 
 from pkg_resources import Requirement
@@ -158,7 +161,7 @@ Resolvable.register(ResolvableRequirement)
 
 
 def resolvables_from_iterable(iterable):
-  def coerce(obj):
+  def translate(obj):
     if isinstance(obj, Resolvable):
       return obj
     elif isinstance(obj, Requirement):
@@ -169,4 +172,4 @@ def resolvables_from_iterable(iterable):
       return Resolvable.get(obj)
     else:
       raise ValueError('Do not know how to resolve %s' % type(obj))
-  return list(map(coerce, iterable))
+  return list(map(translate, iterable))

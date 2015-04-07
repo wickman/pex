@@ -1,8 +1,10 @@
 from abc import abstractmethod, abstractproperty
 
 from .base import maybe_requirement, requirement_is_exact
-from .compatibility import AbstractClass
+from .compatibility import AbstractClass, string as compatibility_string
 from .package import Package
+
+from pkg_resources import Requirement
 
 
 class Resolvable(AbstractClass):
@@ -152,3 +154,18 @@ class ResolvableRequirement(Resolvable):
 Resolvable.register(ResolvableRepository)
 Resolvable.register(ResolvablePackage)
 Resolvable.register(ResolvableRequirement)
+
+
+def resolvables_from_iterable(iterable):
+  def coerce(obj):
+    if isinstance(obj, Resolvable):
+      return obj
+    elif isinstance(obj, Requirement):
+      return ResolvableRequirement(obj)
+    elif isinstance(obj, Package):
+      return ResolvablePackage(obj)
+    elif isinstance(obj, compatibility_string):
+      return Resolvable.get(obj)
+    else:
+      raise ValueError('Do not know how to resolve %s' % type(obj))
+  return list(map(coerce, iterable))

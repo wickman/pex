@@ -17,7 +17,7 @@ from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .package import EggPackage, Package, SourcePackage, distribution_compatible
 from .platforms import Platform
-from .resolvable import ResolvableRequirement
+from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .sorter import Sorter
 from .tracer import TRACER
 from .translator import Translator
@@ -84,7 +84,7 @@ class ResolverOptionsBuilder(object):
   def add_index(self, index):
     self._fetchers.append(PyPIFetcher(index))
     return self
-  
+
   def set_index(self, index):
     self._fetchers = [PyPIFetcher(index)]
     return self
@@ -177,7 +177,10 @@ class Resolver(object):
                options=None):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = platform or Platform.current()
-    self._translator = translator or Translator.default(interpreter=interpreter, platform=platform)
+    self._translator = translator or Translator.default(
+        interpreter=self._interpreter,
+        platform=self._platform,
+    )
     self._options = options or ResolverOptions()
 
   def package_iterator(self, resolvable, existing=None):
@@ -285,22 +288,21 @@ class CachingResolver(Resolver):
 
 
 def resolve(
-    requirements,
+    requirements, #
     fetchers=None,
-    translator=None,
-    interpreter=None,
-    platform=None,
-    context=None,
-    threads=1,
-    precedence=None,
-    cache=None,
-    cache_ttl=None):
+    translator=None, #
+    interpreter=None, #
+    platform=None, #
+    context=None,      # XXX
+    threads=1,         # XXX
+    precedence=None, #
+    cache=None, #
+    cache_ttl=None): #
 
-  options = ResolverOptions()
-  if context:
-    options.set_context(context)
-  if precedence:
-    options.set_precedence(precedence)
+  options = ResolverOptions(
+      fetchers=fetchers,
+      precedence=precedence,
+  )
 
   keywords = dict(
       translator=translator,
@@ -314,4 +316,4 @@ def resolve(
   else:
     resolver = Resolver(**keywords)
 
-  return resolver.resolve(requirements)
+  return resolver.resolve(resolvables_from_iterable(requirements))

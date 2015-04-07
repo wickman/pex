@@ -62,25 +62,3 @@ def requirements_from_lines(lines, builder=None):
 def requirements_from_file(filename, builder=None):
   with open(filename, 'r') as fp:
     return requirements_from_lines(fp.readlines(), builder=builder)
-
-
-"""
-@classmethod
-def from_iterable(cls, iterable, builder=None):
-  def iterate():
-    for obj in iterable:
-      if isinstance(obj, Resolvable):
-        yield obj
-      elif isinstance(obj, Requirement):
-        yield ResolvableRequirement(obj)
-      elif isinstance(obj, Package):
-        yield ResolvablePackage(obj)
-      elif isinstance(obj, compatibility_string):
-        yield Resolvable.get(obj)
-      else:
-        raise UnsupportedObject('Do not know how to resolve %s' % type(obj))
-  requirements = requirements or cls()
-  for resolvable in iterate():
-    requirements.add(resolvable)
-  return requirements
-"""

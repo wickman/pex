@@ -15,7 +15,7 @@ class IteratorInterface(AbstractClass):
 
 
 class Iterator(IteratorInterface):
-  """A requirement iterator."""
+  """A requirement iterator, the glue between fetchers, crawlers and requirements."""
 
   def __init__(self, fetchers=None, crawler=None, follow_links=False):
     self._crawler = crawler or Crawler()

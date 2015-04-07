@@ -36,7 +36,7 @@ def test_line_types(flag_separator):
 
   # simple_requirement
   assert len(reqs) == 2
-  
+
   assert isinstance(reqs[0], ResolvableRequirement)
   assert reqs[0].requirement == Requirement.parse('simple_requirement')
 

@@ -10,11 +10,11 @@ from pex.testing import make_sdist
 
 def test_thats_it_thats_the_test():
   empty_resolve = resolve([])
-  assert empty_resolve == set()
+  assert empty_resolve == []
 
   with temporary_dir() as td:
     empty_resolve = resolve([], cache=td)
-    assert empty_resolve == set()
+    assert empty_resolve == []
 
 
 def test_simple_local_resolve():

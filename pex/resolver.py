@@ -7,18 +7,15 @@ import os
 import shutil
 import time
 from collections import defaultdict
-from functools import partial
 
-from pkg_resources import Distribution
+from pkg_resources import safe_name
 
-from .base import maybe_requirement_list, requirement_is_exact
 from .crawler import Crawler
 from .fetcher import Fetcher, PyPIFetcher
 from .http import Context
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
-from .orderedset import OrderedSet
-from .package import Package, distribution_compatible
+from .package import EggPackage, Package, SourcePackage, distribution_compatible
 from .platforms import Platform
 from .resolvable import ResolvableRequirement
 from .sorter import Sorter
@@ -87,6 +84,10 @@ class ResolverOptionsBuilder(object):
   def add_index(self, index):
     self._fetchers.append(PyPIFetcher(index))
     return self
+  
+  def set_index(self, index):
+    self._fetchers = [PyPIFetcher(index)]
+    return self
 
   def add_repository(self, repo):
     self._fetchers.append(Fetcher([repo]))
@@ -122,11 +123,11 @@ class ResolverOptionsBuilder(object):
 
   def build(self):
     return ResolverOptions(
-        fetchers,
-        allow_all_external,
-        allow_external,
-        allow_unverified,
-        precedence,
+        self._fetchers,
+        self._allow_all_external,
+        self._allow_external,
+        self._allow_unverified,
+        self._precedence,
     )
 
 
@@ -163,12 +164,6 @@ class ResolverOptions(object):
 
 class Resolver(object):
   class Error(Exception): pass
-
-  @classmethod
-  def from_requirements(cls, requirements_txt):
-    rtxt = RequirementsTxt.from_file(requirements_txt)
-    return cls(
-    )
 
   @classmethod
   def filter_packages_by_interpreter(cls, packages, interpreter, platform):

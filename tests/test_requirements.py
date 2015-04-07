@@ -2,92 +2,80 @@ import os
 from textwrap import dedent
 
 import pytest
-from pkg_resources import Requirement
+from pkg_resources import Requirement, safe_name
 from twitter.common.contextutil import temporary_dir
 
-from pex.base import (
-    maybe_requirement,
-    maybe_requirement_list,
-    requirement_is_exact,
-)
 from pex.fetcher import PyPIFetcher
-from pex.resolvabe import (
+from pex.resolvable import (
     Resolvable,
     ResolvableRepository,
     ResolvablePackage,
     ResolvableRequirement,
 )
-from pex.requirements import RequirementsTxt
+from pex.resolver import ResolverOptions, ResolverOptionsBuilder
+from pex.requirements import requirements_from_lines, requirements_from_file
 
 
 def test_from_empty_lines():
-  reqs = RequirementsTxt.from_lines([])
-  assert list(reqs.iter()) == []
+  reqs, _ = requirements_from_lines([])
+  assert len(reqs) == 0
 
-  reqs = RequirementsTxt.from_lines(dedent("""
+  reqs, _ = requirements_from_lines(dedent("""
   # comment
   """).splitlines())
-  assert list(reqs.iter()) == []
+  assert len(reqs) == 0
 
 
 @pytest.mark.parametrize('flag_separator', (' ', '='))
 def test_line_types(flag_separator):
-  reqs = RequirementsTxt.from_lines(dedent("""
+  reqs, builder = requirements_from_lines(dedent("""
   simple_requirement
   specific_requirement==2
   --allow-external%sspecific_requirement
   """ % flag_separator).splitlines())
 
-  req_iter = reqs.iter()
-
   # simple_requirement
-  req = next(req_iter)
-  assert isinstance(req, ResolvableRequirement)
-  assert req.requirement == Requirement.parse('simple_requirement')
+  assert len(reqs) == 2
+  
+  assert isinstance(reqs[0], ResolvableRequirement)
+  assert reqs[0].requirement == Requirement.parse('simple_requirement')
 
   # specific_requirement
-  req = next(req_iter)
-  assert isinstance(req, ResolvableRequirement)
-  assert req.requirement == Requirement.parse('specific_requirement==2')
-  assert req._follow_links
+  assert isinstance(reqs[1], ResolvableRequirement)
+  assert reqs[1].requirement == Requirement.parse('specific_requirement==2')
+  assert safe_name('specific_requirement') in builder._allow_external
 
 
 def test_all_external():
-  reqs = RequirementsTxt.from_lines(dedent("""
+  reqs, builder = requirements_from_lines(dedent("""
   simple_requirement
   specific_requirement==2
   --allow-all-external
   """).splitlines())
-  reqs = list(reqs.iter())
-  assert len(reqs) == 2
-  assert reqs[0]._follow_links
-  assert reqs[1]._follow_links
+  assert builder._allow_all_external
 
 
 def test_index_types():
-  reqs = RequirementsTxt()
-  assert len(reqs._fetchers) == 1 and isinstance(reqs._fetchers[0], PyPIFetcher)
-
-  reqs = RequirementsTxt.from_lines(dedent("""
+  reqs, builder = requirements_from_lines(dedent("""
   --no-index
   """).splitlines())
-  assert reqs._fetchers == []
+  assert builder._fetchers == []
 
   for prefix in ('-f ', '--find-links ', '--find-links='):
-    reqs = RequirementsTxt.from_lines(dedent("""
+    reqs, builder = requirements_from_lines(dedent("""
     --no-index
     %shttps://example.com/repo
     """ % prefix).splitlines())
-    assert len(reqs._fetchers) == 1
-    assert reqs._fetchers[0].urls('foo') == ['https://example.com/repo']
+    assert len(builder._fetchers) == 1
+    assert builder._fetchers[0].urls('foo') == ['https://example.com/repo']
 
   for prefix in ('-i ', '--index-url ', '--index-url=', '--extra-index-url ', '--extra-index-url='):
-    reqs = RequirementsTxt.from_lines(dedent("""
+    reqs, builder = requirements_from_lines(dedent("""
     --no-index
     %shttps://example.com/repo/
     """ % prefix).splitlines())
-    assert len(reqs._fetchers) == 1, 'Prefix is: %r' % prefix
-    assert reqs._fetchers[0].urls('foo') == ['https://example.com/repo/foo/']
+    assert len(builder._fetchers) == 1, 'Prefix is: %r' % prefix
+    assert builder._fetchers[0].urls('foo') == ['https://example.com/repo/foo/']
 
 
 def test_nested_requirements():
@@ -110,8 +98,8 @@ def test_nested_requirements():
     def rr(req):
       return ResolvableRequirement(Requirement.parse(req))
 
-    reqs = RequirementsTxt.from_file(os.path.join(td, 'requirements1.txt'))
-    assert list(reqs.iter()) == [
+    reqs, builder = requirements_from_file(os.path.join(td, 'requirements1.txt'))
+    assert reqs == [
       rr('requirement1'),
       rr('requirement2'),
       rr('requirement3'),

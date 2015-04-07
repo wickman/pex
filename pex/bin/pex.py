@@ -234,7 +234,8 @@ def configure_clp():
       metavar='FILE',
       default=[],
       action='append',
-      help='Add requirements from the given requirements file.  This option can be used multiple times.')
+      help='Add requirements from the given requirements file.  This option can be used multiple '
+           'times.')
 
   parser.add_option(
       '-s', '--source-dir',

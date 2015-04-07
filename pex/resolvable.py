@@ -1,7 +1,7 @@
 from abc import abstractmethod, abstractproperty
 
 from .base import maybe_requirement, requirement_is_exact
-from .compatibility import AbstractClass, string as compatibility_string
+from .compatibility import AbstractClass
 from .package import Package
 
 
@@ -87,6 +87,7 @@ class ResolvableRepository(Resolvable):
 
 
 class ResolvablePackage(Resolvable):
+
   # A Package (either local or remote)
   @classmethod
   def from_string(cls, requirement_string):
@@ -114,6 +115,7 @@ class ResolvablePackage(Resolvable):
 
 
 class ResolvableRequirement(Resolvable):
+
   # A Requirement wrapper
   @classmethod
   def from_string(cls, requirement_string):

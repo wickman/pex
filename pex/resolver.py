@@ -25,7 +25,6 @@ from .translator import (
     ChainedTranslator,
     EggTranslator,
     SourceTranslator,
-    Translator,
     WheelTranslator
 )
 

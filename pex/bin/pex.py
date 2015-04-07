@@ -467,20 +467,16 @@ def build_pex(args, options, resolver_option_builder):
 
 def main():
   parser, resolver_options_builder = configure_clp()
-  options, args = parser.parse_args()
 
-  if options.verbosity:
-    log('options:%s' % options)
-
+  # split arguments early because optparse is dumb
+  args = sys.argv[1:]
   try:
     separator = args.index('--')
-    reqs, args = args[:separator], args[separator + 1:]
+    args, cmdline = args[:separator], args[separator + 1:]
   except ValueError:
-    reqs, args = args, []
+    args, cmdline = args, []
 
-  if options.verbosity:
-    log('reqs:%s' % reqs)
-    log('args:%s' % args)
+  options, reqs = parser.parse_args(args=args)
 
   with TraceLogger.env_override(PEX_VERBOSE=options.verbosity):
     with TRACER.timed('Building pex'):
@@ -499,9 +495,9 @@ def main():
 
     pex_builder.freeze()
 
-    log('Running PEX file at %s with args %s' % (pex_builder.path(), args), v=options.verbosity)
+    log('Running PEX file at %s with args %s' % (pex_builder.path(), cmdline), v=options.verbosity)
     pex = PEX(pex_builder.path(), interpreter=pex_builder.interpreter)
-    return pex.run(args=list(args))
+    return pex.run(args=list(cmdline))
 
 
 if __name__ == '__main__':

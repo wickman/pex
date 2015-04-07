@@ -6,14 +6,14 @@ from pkg_resources import Requirement, safe_name
 from twitter.common.contextutil import temporary_dir
 
 from pex.fetcher import PyPIFetcher
+from pex.requirements import requirements_from_file, requirements_from_lines
 from pex.resolvable import (
     Resolvable,
-    ResolvableRepository,
     ResolvablePackage,
-    ResolvableRequirement,
+    ResolvableRepository,
+    ResolvableRequirement
 )
 from pex.resolver import ResolverOptions, ResolverOptionsBuilder
-from pex.requirements import requirements_from_lines, requirements_from_file
 
 
 def test_from_empty_lines():

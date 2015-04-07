@@ -28,8 +28,8 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
-from pex.resolvable import ResolvableRequirement
-from pex.resolver import resolve as requirement_resolver
+from pex.resolvable import Resolvable, ResolvableRequirement, ResolvablePackage
+from pex.resolver import Resolver, CachingResolver, ResolverOptionsBuilder
 from pex.tracer import TRACER, TraceLogger
 from pex.translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 from pex.version import __setuptools_requirement, __version__, __wheel_requirement
@@ -97,7 +97,7 @@ def process_precedence(option, option_str, option_value, parser, builder):
 
 
 def process_requirements(option, option_str, option_value, parser, builder):
-  resolvables = setattr(parser.values, option.dest)
+  resolvables = getattr(parser.values, option.dest)
   new_resolvables, _ = requirements_from_file(option_value, builder=builder)
   resolvables.extend(new_resolvables)
 
@@ -113,6 +113,7 @@ def configure_clp_pex_resolution(parser, builder):
       '--pypi', '--no-pypi', '--no-index',
       action='callback',
       dest='indices',
+      default=[],
       callback=process_pypi_option,
       callback_args=(builder,),
       help='Whether to use pypi to resolve dependencies; Default: use pypi')
@@ -122,6 +123,7 @@ def configure_clp_pex_resolution(parser, builder):
       metavar='PATH/URL',
       action='callback',
       dest='repos',
+      default=[],
       callback=process_find_links,
       callback_args=(builder,),
       type=str,
@@ -132,6 +134,7 @@ def configure_clp_pex_resolution(parser, builder):
       metavar='URL',
       action='callback',
       dest='indices',
+      default=[],
       callback=process_index_url,
       callback_args=(builder,),
       type=str,
@@ -254,7 +257,7 @@ def configure_clp():
   
   resolver_options_builder = ResolverOptionsBuilder()
   configure_clp_pex_resolution(parser, resolver_options_builder)
-  configure_clp_pex_options(parser):
+  configure_clp_pex_options(parser)
   configure_clp_pex_environment(parser)
 
   parser.add_option(
@@ -286,7 +289,7 @@ def configure_clp():
       action='callback',
       type=str,
       callback=process_requirements,
-      callback_args=(builder,),
+      callback_args=(resolver_options_builder,),
       help='Add requirements from the given requirements file.  This option can be used multiple '
            'times.')
 
@@ -307,7 +310,7 @@ def configure_clp():
       callback=increment_verbosity,
       help='Turn on logging verbosity, may be specified multiple times.')
 
-  return parser
+  return parser, resolver_options_builder
 
 
 def _safe_link(src, dst):
@@ -421,7 +424,7 @@ def build_pex(args, options, resolver_option_builder):
   pex_info.ignore_errors = options.ignore_errors
   pex_info.inherit_path = options.inherit_path
 
-  resolvables = [Resolvable.from_string(arg) for arg in args]
+  resolvables = [Resolvable.get(arg) for arg in args]
   resolvables.extend(options.resolvables)
 
   if options.source_dirs:
@@ -437,7 +440,7 @@ def build_pex(args, options, resolver_option_builder):
 
   resolver_options = resolver_option_builder.build()
   resolver_kwargs = dict(
-      translator=resolver_options.get_translator(interpreter, platform),
+      translator=resolver_options.get_translator(interpreter, options.platform),
       interpreter=interpreter,
       platform=options.platform,
       options=resolver_options,

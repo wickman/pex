@@ -1,8 +1,8 @@
 from pex.resolvable import (
     Resolvable,
-    ResolvableRepository,
     ResolvablePackage,
-    ResolvableRequirement,
+    ResolvableRepository,
+    ResolvableRequirement
 )
 
 

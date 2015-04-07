@@ -13,14 +13,21 @@ from pkg_resources import safe_name
 from .crawler import Crawler
 from .fetcher import Fetcher, PyPIFetcher
 from .http import Context
+from .installer import EggInstaller, WheelInstaller
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
-from .package import EggPackage, Package, SourcePackage, distribution_compatible
+from .package import EggPackage, Package, SourcePackage, WheelPackage, distribution_compatible
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .sorter import Sorter
 from .tracer import TRACER
-from .translator import Translator
+from .translator import (
+    ChainedTranslator,
+    EggTranslator,
+    SourceTranslator,
+    Translator,
+    WheelTranslator
+)
 
 
 class Untranslateable(Exception):
@@ -176,11 +183,11 @@ class ResolverOptions(object):
     
     # ugh
     for package in self._precedence:
-      if isinstance(package, WheelPackage):
+      if package is WheelPackage:
         translators.append(WheelTranslator(interpreter=interpreter, platform=platform))
-      elif isinstance(package, EggPackage):
+      elif package is EggPackage:
         translators.append(EggTranslator(interpreter=interpreter, platform=platform))
-      elif isinstance(package, SourceTranslator):
+      elif package is SourcePackage:
         installer_impl = WheelInstaller if WheelPackage in self._precedence else EggInstaller
         translators.append(SourceTranslator(installer_impl=installer_impl, interpreter=interpreter))
     
@@ -230,7 +237,8 @@ class Resolver(object):
     with TRACER.timed('Translating %s into distribution' % local_package.path, V=2):
       dist = self._translator.translate(local_package)
     if dist is None:
-      raise Untranslateable('Package %s is not translateable.' % package)
+      raise Untranslateable('Package %s is not translateable by %s' % (
+          package, self._translator))
     if not distribution_compatible(dist, self._interpreter, self._platform):
       raise Untranslateable('Could not get distribution for %s on appropriate platform.' %
           package)

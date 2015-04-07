@@ -1,10 +1,11 @@
 from abc import abstractmethod, abstractproperty
 
-from .base import maybe_requirement, requirement_is_exact
-from .compatibility import AbstractClass, string as compatibility_string
-from .package import Package
-
 from pkg_resources import Requirement
+
+from .base import maybe_requirement, requirement_is_exact
+from .compatibility import string as compatibility_string
+from .compatibility import AbstractClass
+from .package import Package
 
 
 class Resolvable(AbstractClass):

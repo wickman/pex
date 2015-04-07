@@ -1,8 +1,8 @@
+from pkg_resources import Requirement, get_build_platform
+
 from pex.interpreter import PythonInterpreter
 from pex.package import EggPackage, SourcePackage, WheelPackage
 from pex.sorter import Sorter
-
-from pkg_resources import get_build_platform, Requirement
 
 
 def test_package_precedence():

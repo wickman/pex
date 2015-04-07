@@ -241,7 +241,7 @@ class Resolver(object):
 
   def build(self, package):
     context = self._options.get_context(package.name)
-    translator = self._options.get_translator(package.name)
+    translator = self._options.get_translator(self._interpreter, self._platform)
     with TRACER.timed('Fetching %s' % package.url, V=2):
       local_package = Package.from_href(context.fetch(package))
     with TRACER.timed('Translating %s into distribution' % local_package.path, V=2):
@@ -285,7 +285,7 @@ class Resolver(object):
         resolvables.extend(ResolvableRequirement(req) for req in
             distribution.requires(extras=resolvable_set.extras(resolvable_name)))
 
-    return distributions.values()
+    return list(distributions.values())
 
 
 class CachingResolver(Resolver):

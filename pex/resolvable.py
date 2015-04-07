@@ -116,6 +116,9 @@ class ResolvablePackage(Resolvable):
   def exact(self):
     return True
 
+  def __hash__(self):
+    return hash(self.package)
+
   def __str__(self):
     return str(self.package)
 
@@ -150,6 +153,9 @@ class ResolvableRequirement(Resolvable):
 
   def extras(self, interpreter=None):
     return self.requirement.extras
+
+  def __hash__(self):
+    return hash(self.requirement)
 
   def __str__(self):
     return str(self.requirement)

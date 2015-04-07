@@ -9,9 +9,9 @@ from pex.iterator import Iterator
 from pex.package import SourcePackage
 
 try:
-  import mock
-except ImportError:
   from unittest import mock
+except ImportError:
+  import mock
 
 
 def test_empty_iteration():

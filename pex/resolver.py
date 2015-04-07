@@ -21,12 +21,7 @@ from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .sorter import Sorter
 from .tracer import TRACER
-from .translator import (
-    ChainedTranslator,
-    EggTranslator,
-    SourceTranslator,
-    WheelTranslator
-)
+from .translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 
 
 class Untranslateable(Exception):

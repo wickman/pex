@@ -81,6 +81,7 @@ class ResolverOptionsBuilder(object):
     self._precedence = Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = Context.get()
 
+  # TODO(wickman) Resolve duplicates here?
   def add_index(self, index):
     self._fetchers.append(PyPIFetcher(index))
     return self
@@ -109,8 +110,24 @@ class ResolverOptionsBuilder(object):
     self._allow_unverified.add(safe_name(key).lower())
     return self
 
+  def use_wheel(self):
+    if WheelPackage not in self._precedence:
+      self._precedence = (WheelPackage,) + self._precedence
+    return self
+
   def no_use_wheel(self):
-    self._precedence = (EggPackage, SourcePackage)
+    self._precedence = tuple(
+        [precedent for precedent in self._precedence if precedence is not WheelPackage])
+    return self
+  
+  def allow_builds(self):
+    if SourcePackage not in self._precedence:
+      self._precedence = self._precedence + (SourcePackage,)
+    return self
+
+  def no_allow_builds(self):
+    self._precedence = tuple(
+        [precedent for precedent in self._precedence if precedence is not SourcePackage])
     return self
 
   def set_context(self, context):
@@ -153,6 +170,21 @@ class ResolverOptions(object):
 
   def get_sorter(self):
     return Sorter(self._precedence)
+
+  def get_translator(self, interpreter, platform):
+    translators = []
+    
+    # ugh
+    for package in self._precedence:
+      if isinstance(package, WheelPackage):
+        translators.append(WheelTranslator(interpreter=interpreter, platform=platform))
+      elif isinstance(package, EggPackage):
+        translators.append(EggTranslator(interpreter=interpreter, platform=platform))
+      elif isinstance(package, SourceTranslator):
+        installer_impl = WheelInstaller if WheelPackage in self._precedence else EggInstaller
+        translators.append(SourceTranslator(installer_impl=installer_impl, interpreter=interpreter))
+    
+    return ChainedTranslator(*translators)
 
   def get_iterator(self, key):
     return Iterator(
@@ -288,16 +320,16 @@ class CachingResolver(Resolver):
 
 
 def resolve(
-    requirements, #
+    requirements,
     fetchers=None,
-    translator=None, #
-    interpreter=None, #
-    platform=None, #
+    translator=None,
+    interpreter=None,
+    platform=None,
     context=None,      # XXX
     threads=1,         # XXX
-    precedence=None, #
-    cache=None, #
-    cache_ttl=None): #
+    precedence=None,
+    cache=None,
+    cache_ttl=None):
 
   options = ResolverOptions(
       fetchers=fetchers,

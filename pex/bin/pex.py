@@ -270,15 +270,9 @@ def configure_clp():
       '-e', '--entry-point',
       dest='entry_point',
       default=None,
-      help='Set the entry point as specified by the console_script from one of the requirements.'
-           'May be specified as requirement:entry or entry.  For example pex -e wheel wheel.')
-
-  parser.add_option(
-      '-m', '--module-name',
-      dest='module_name',
-      default=None,
-      help='Set the entry point to the module, a la python -m.  Takes both module '
-           'and module:symbol forms.')
+      help='The entry point for this pex; Omiting this will enter the python '
+           'REPL with sources and requirements available for import.  Can be '
+           'either a module or EntryPoint (module:function) format.')
 
   parser.add_option(
       '-r', '--requirement',

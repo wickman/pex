@@ -67,7 +67,7 @@ class PEX(object):  # noqa: T000
   def info(self):
     return self._pex_info
 
-  def entry(self):
+  def get_entry_point(self):
     """Return the module spec of the entry point of this PEX.
 
       :returns: The entry point for this environment as a string, otherwise
@@ -80,6 +80,21 @@ class PEX(object):  # noqa: T000
     if entry_point:
       TRACER.log('Using prescribed entry point: %s' % entry_point)
       return str(entry_point)
+  
+  def get_script(self):
+    """Return the script path and script content if this PEX is invoking a script.
+    
+       Must be called after the environment has been activated.
+    """
+    if self._pex_info.script:
+      # TODO(wickman) Should PEXEnvironment just have .working_set as a property?
+      dist, script_path, script_content = get_script_from_distributions(
+          self._pex_info.script, self._env.activate())
+      if not dist:
+        raise self.NotFound('Could not find script %s in pex!' % self._pex_info.script)
+      TRACER.log('Found script %s in %s' % (self._pex_info.script, dist))
+      return script_path, script_content
+    return None, None
 
   @classmethod
   def _extras_paths(cls):
@@ -254,9 +269,6 @@ class PEX(object):  # noqa: T000
     This function makes assumptions that it is the last function called by
     the interpreter.
     """
-
-    entry_point = self.entry()
-
     try:
       with self.patch_sys():
         working_set = self._env.activate()
@@ -267,10 +279,19 @@ class PEX(object):  # noqa: T000
           TRACER.log('  %c %s' % (' ' if os.path.exists(element) else '*', element))
         TRACER.log('  * - paths that do not exist or will be imported via zipimport')
         with self.patch_pkg_resources(working_set):
-          if entry_point and 'PEX_INTERPRETER' not in os.environ:
+          entry_point = self.get_entry_point()
+          script_filename, script_content = self.get_script()
+
+          # XXX update PEX_INTERPRETER semantics
+          if 'PEX_INTERPRETER' in os.environ:
+            self.execute_interpreter()          
+          elif entry_point:
             self.execute_entry(entry_point, args)
+          elif script_filename:
+            self.execute_content(script_filename, script_content)
           else:
             self.execute_interpreter()
+
     except Exception:
       # Allow the current sys.excepthook to handle this app exception before we tear things down in
       # finally, then reraise so that the exit status is reflected correctly.
@@ -295,21 +316,36 @@ class PEX(object):  # noqa: T000
     if sys.argv[1:]:
       try:
         with open(sys.argv[1]) as fp:
-          ast = compile(fp.read(), fp.name, 'exec', flags=0, dont_inherit=1)
+          content = fp.read()
       except IOError as e:
         print("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
         sys.exit(1)
+      name = sys.argv[1]
       sys.argv = sys.argv[1:]
-      old_name = globals()['__name__']
-      try:
-        globals()['__name__'] = '__main__'
-        exec_function(ast, globals())
-      finally:
-        globals()['__name__'] = old_name
+      cls.execute_content(name, content)
     else:
       import code
       code.interact()
 
+  @classmethod
+  def execute_content(cls, name, content):
+    ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
+    old_name, old_file = globals().get('__name__'), globals().get('__file__')
+    try:
+      globals()['__name__'] = '__main__'
+      globals()['__file__'] = name
+      exec_function(ast, globals())
+    finally:
+      if old_name:
+        globals()['__name__'] = old_name
+      else:
+        globals().pop('__name__')
+      if old_file:
+        globals()['__file__'] = old_file
+      else:
+        globals().pop('__file__')
+
+  # TODO(wickman) Find a way to make PEX_PROFILE work with all execute_*
   @classmethod
   def execute_entry(cls, entry_point, args=None):
     if args:
@@ -348,7 +384,7 @@ class PEX(object):  # noqa: T000
       # setuptools < 11.3
       runner = entry.load(require=False)
     runner()
-
+  
   def cmdline(self, args=()):
     """The commandline to run this environment.
 

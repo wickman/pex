@@ -263,6 +263,7 @@ def configure_clp_pex_entry_points(parser):
            'behaves like python -m, e.g. python -m SimpleHTTPServer.  If specifying '
            'module:symbol, pex imports that symbol and invokes it as if it were main.')
 
+  # XXX unify --console-script and --script
   group.add_option(
       '-c', '--console-script',
       dest='console_script',

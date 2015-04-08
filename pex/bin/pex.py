@@ -35,6 +35,8 @@ from pex.version import __setuptools_requirement, __version__, __wheel_requireme
 
 CANNOT_DISTILL = 101
 CANNOT_SETUP_INTERPRETER = 102
+INVALID_OPTIONS = 103
+INVALID_ENTRY_POINT = 104
 
 
 def die(msg, error_code=1):
@@ -78,6 +80,10 @@ def process_index_url(option, option_str, option_value, parser, builder):
   indices.append(PyPIFetcher(option_value))
   setattr(parser.values, option.dest, indices)
   builder.add_index(option_value)
+
+
+def process_disable_caching(option, option_str, option_value, parser, builder):
+  setattr(parser.values, 'cache_dir', None)
 
 
 def process_precedence(option, option_str, option_value, parser, builder):
@@ -140,6 +146,13 @@ def configure_clp_pex_resolution(parser, builder):
       help='Additional cheeseshop indices to use to satisfy requirements.')
 
   group.add_option(
+      '--disable-cache',
+      action='callback',
+      callback=process_disable_caching,
+      help='Disable package caching completely.  Forces the fetching and (possibly) '
+           'building of all packages.')
+
+  group.add_option(
       '--cache-dir',
       dest='cache_dir',
       default=os.path.expanduser('~/.pex/build'),
@@ -151,7 +164,10 @@ def configure_clp_pex_resolution(parser, builder):
       dest='cache_ttl',
       type=int,
       default=None,
-      help='The cache TTL to use for inexact requirement specifications.')
+      help='The cache TTL to use for inexact requirement specifications.  This is disabled '
+           'by default.  If --cache-ttl is specified and a package in the cache satisfies an '
+           'inexact requirement (e.g. "setuptools>2" instead of "setuptools==2.2") but is '
+           'younger than the TTL (in seconds), allow that package to be used.')
 
   group.add_option(
       '--wheel', '--no-wheel', '--no-use-wheel',
@@ -246,6 +262,42 @@ def configure_clp_pex_environment(parser):
   parser.add_option_group(group)
 
 
+def configure_clp_pex_entry_points(parser):
+  group = OptionGroup(
+      parser,
+      'PEX entry point options',
+      'Specify what target/module the PEX should invoke if any.')
+
+  group.add_option(
+      '-m', '-e', '--entry-point',
+      dest='entry_point',
+      metavar='MODULE[:SYMBOL]',
+      default=None,
+      help='Set the entry point to module or module:symbol.  If just specifying module, pex '
+           'behaves like python -m, e.g. python -m SimpleHTTPServer.  If specifying '
+           'module:symbol, pex imports that symbol and invokes it as if it were main.')
+
+  group.add_option(
+      '-c', '--console-script',
+      dest='console_script',
+      default=None,
+      metavar='[NAME:]ENTRY',
+      help='Set the entry point as specified by the console_script from one of the requirements. '
+           'May be specified as name:entry or entry, where "name" is the requirement name e.g. '
+           '"setuptools".  For example: pex -c fab fabric.')
+
+  # TODO(wickman) It is unclear if this even works at all -- pkg_resources seems to
+  # fuck this up royally.
+  group.add_option(
+      '--script',
+      dest='script',
+      default=None,
+      metavar='REQUIREMENT:SCRIPTNAME',
+      help='Run the requirement script as defined in the "scripts" section of setup.py')
+
+  parser.add_option_group(group)
+
+
 def configure_clp():
   usage = (
       '%prog [-o OUTPUT.PEX] [options] [-- arg1 arg2 ...]\n\n'
@@ -258,6 +310,7 @@ def configure_clp():
   configure_clp_pex_resolution(parser, resolver_options_builder)
   configure_clp_pex_options(parser)
   configure_clp_pex_environment(parser)
+  configure_clp_pex_entry_points(parser)
 
   parser.add_option(
       '-o', '--output-file',
@@ -265,14 +318,6 @@ def configure_clp():
       default=None,
       help='The name of the generated .pex file: Omiting this will run PEX '
            'immediately and not save it to a file.')
-
-  parser.add_option(
-      '-e', '--entry-point',
-      dest='entry_point',
-      default=None,
-      help='The entry point for this pex; Omiting this will enter the python '
-           'REPL with sources and requirements available for import.  Can be '
-           'either a module or EntryPoint (module:function) format.')
 
   parser.add_option(
       '-r', '--requirement',
@@ -399,6 +444,56 @@ def interpreter_from_options(options):
     return interpreter
 
 
+def get_entry_point_from_console_script(console_script, distributions):
+  entry = console_script.split(':', 1)
+
+  if len(entry) == 1:
+    name, entry = None, entry[0]
+  else:
+    name, entry = entry
+
+  for dist in distributions:
+    for console_script in dist.get_entry_map().get('console_scripts', {}).items():
+      if entry == console_script and (not name or name == dist.key):
+        return entry
+
+
+def set_entry_point(options, pex_info, distributions):
+  script, entry_point = None, None
+
+  def die():
+    print('Must specify at most one of --entry-point, --console-script or --script.',
+        file=sys.stderr)
+    sys.exit(INVALID_OPTIONS)
+
+  if options.entry_point:
+    entry_point = options.entry_point
+
+  if options.console_script:
+    if entry_point:
+      die()
+    entry_point = get_entry_point_from_console_script(options.console_script, distributions)
+    if entry_point is None:
+      print('Could not find entry point %s' % options.console_script)
+      sys.exit(INVALID_ENTRY_POINT)
+
+  if options.script:
+    if entry_point:
+      die()
+    print('--script is not yet implemented.', file=sys.stderr)
+    sys.exit(INVALID_OPTIONS)
+
+  if entry_point:
+    log('Setting entry point to %s' % entry_point, v=options.verbosity)
+    pex_info.entry_point = entry_point
+  elif script:
+    log('Setting script to %s' % script, v=options.verbosity)
+    pex_info.entry_script = script
+  else:
+    # REPL-based pex
+    log('Creating environment PEX.', v=options.verbosity)
+
+
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreter', V=2):
     interpreter = interpreter_from_options(options)  # XXX calls fetcher_from_options
@@ -449,11 +544,7 @@ def build_pex(args, options, resolver_option_builder):
     pex_builder.add_distribution(dist)
     pex_builder.add_requirement(dist.as_requirement())
 
-  if options.entry_point is not None:
-    log('Setting entry point to %s' % options.entry_point, v=options.verbosity)
-    pex_builder.info.entry_point = options.entry_point
-  else:
-    log('Creating environment PEX.', v=options.verbosity)
+  set_entry_point(options, pex_builder.info, resolveds)
 
   return pex_builder
 

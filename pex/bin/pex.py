@@ -82,10 +82,6 @@ def process_index_url(option, option_str, option_value, parser, builder):
   builder.add_index(option_value)
 
 
-def process_disable_caching(option, option_str, option_value, parser, builder):
-  setattr(parser.values, 'cache_dir', None)
-
-
 def process_precedence(option, option_str, option_value, parser, builder):
   if option_str == '--build':
     builder.allow_builds()
@@ -146,13 +142,6 @@ def configure_clp_pex_resolution(parser, builder):
       help='Additional cheeseshop indices to use to satisfy requirements.')
 
   group.add_option(
-      '--disable-cache',
-      action='callback',
-      callback=process_disable_caching,
-      help='Disable package caching completely.  Forces the fetching and (possibly) '
-           'building of all packages.')
-
-  group.add_option(
       '--cache-dir',
       dest='cache_dir',
       default=os.path.expanduser('~/.pex/build'),
@@ -164,10 +153,7 @@ def configure_clp_pex_resolution(parser, builder):
       dest='cache_ttl',
       type=int,
       default=None,
-      help='The cache TTL to use for inexact requirement specifications.  This is disabled '
-           'by default.  If --cache-ttl is specified and a package in the cache satisfies an '
-           'inexact requirement (e.g. "setuptools>2" instead of "setuptools==2.2") but is '
-           'younger than the TTL (in seconds), allow that package to be used.')
+      help='The cache TTL to use for inexact requirement specifications.')
 
   group.add_option(
       '--wheel', '--no-wheel', '--no-use-wheel',

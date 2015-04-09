@@ -19,6 +19,7 @@ from pex.base import maybe_requirement
 from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
 from pex.crawler import Crawler
 from pex.fetcher import PyPIFetcher
+from pex.finders import get_script_from_distributions
 from pex.http import Context
 from pex.installer import EggInstaller, InstallerBase, Packager
 from pex.interpreter import PythonInterpreter
@@ -265,22 +266,12 @@ def configure_clp_pex_entry_points(parser):
 
   # XXX unify --console-script and --script
   group.add_option(
-      '-c', '--console-script',
-      dest='console_script',
-      default=None,
-      metavar='[NAME:]ENTRY',
-      help='Set the entry point as specified by the console_script from one of the requirements. '
-           'May be specified as name:entry or entry, where "name" is the requirement name e.g. '
-           '"setuptools".  For example: pex -c fab fabric.')
-
-  # TODO(wickman) It is unclear if this even works at all -- pkg_resources seems to
-  # fuck this up royally.
-  group.add_option(
-      '--script',
+      '-c', '--script', '--console-script',
       dest='script',
       default=None,
-      metavar='REQUIREMENT:SCRIPTNAME',
-      help='Run the requirement script as defined in the "scripts" section of setup.py')
+      metavar='SCRIPT_NAME',
+      help='Set the entry point as to the script or console_script as defined by a any of the '
+           'distributions in the pex.  For example: "pex -c fab fabric" or "pex -c mturk boto".')
 
   parser.add_option_group(group)
 
@@ -432,13 +423,6 @@ def interpreter_from_options(options):
 
 
 def get_entry_point_from_console_script(console_script, distributions):
-  entry = console_script.split(':', 1)
-
-  if len(entry) == 1:
-    name, entry = None, entry[0]
-  else:
-    name, entry = entry
-
   for dist in distributions:
     for console_script in dist.get_entry_map().get('console_scripts', {}).items():
       if entry == console_script and (not name or name == dist.key):
@@ -446,36 +430,33 @@ def get_entry_point_from_console_script(console_script, distributions):
 
 
 def set_entry_point(options, pex_info, distributions):
-  script, entry_point = None, None
-
-  def die():
+  if options.entry_point and options.script:
     print('Must specify at most one of --entry-point, --console-script or --script.',
         file=sys.stderr)
     sys.exit(INVALID_OPTIONS)
 
   if options.entry_point:
-    entry_point = options.entry_point
+    log('Setting entry point to %s' % options.entry_point, v=options.verbosity)
+    pex_info.entry_point = options.entry_point
+  elif options.script:
+    entry_point = get_entry_point_from_console_script(options.script, distributions)
 
-  if options.console_script:
     if entry_point:
-      die()
-    entry_point = get_entry_point_from_console_script(options.console_script, distributions)
-    if entry_point is None:
-      print('Could not find entry point %s' % options.console_script)
-      sys.exit(INVALID_ENTRY_POINT)
+      log('Setting entry point to %s (console script: %s)' % (
+          entry_point, script), v=options.verbosity)
+      pex_info.entry_point = entry_point
+      return
 
-  if options.script:
-    if entry_point:
-      die()
-    print('--script is not yet implemented.', file=sys.stderr)
-    sys.exit(INVALID_OPTIONS)
+    script_path, _, _ = get_script_from_distributions(
+        options.script, distributions)
 
-  if entry_point:
-    log('Setting entry point to %s' % entry_point, v=options.verbosity)
-    pex_info.entry_point = entry_point
-  elif script:
-    log('Setting script to %s' % script, v=options.verbosity)
-    pex_info.entry_script = script
+    if script_path:
+      log('Setting script to %s' % options.script, v=options.verbosity)
+      pex_info.script = options.script
+      return
+
+    print('Failed to find script with name %s!' % options.script, file=sys.stderr)
+    sys.exit(INVALID_ENTRY_POINT)
   else:
     # REPL-based pex
     log('Creating environment PEX.', v=options.verbosity)

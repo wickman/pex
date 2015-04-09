@@ -260,7 +260,7 @@ def get_script_from_whl(name, dist):
 def get_script_from_distribution(name, dist):
   if isinstance(dist._provider, FixedEggMetadata):
     return get_script_from_egg(name, dist)
-  elif isinstance(dist._provider, WheelMetadata):
+  elif isinstance(dist._provider, (WheelMetadata, pkg_resources.PathMetadata)):
     return get_script_from_whl(name, dist)
   return None, None
 

@@ -16,6 +16,7 @@ from pkg_resources import EntryPoint, find_distributions
 from .common import safe_mkdir
 from .compatibility import exec_function
 from .environment import PEXEnvironment
+from .finders import get_script_from_distributions
 from .interpreter import PythonInterpreter
 from .orderedset import OrderedSet
 from .pex_info import PexInfo
@@ -68,7 +69,7 @@ class PEX(object):  # noqa: T000
     self._pex_info = PexInfo.from_pex(self._pex)
     self._pex_info_overrides = PexInfo.from_env()
     self._interpreter = interpreter or PythonInterpreter.get()
-    
+
     env_pex_info = self._pex_info.copy()
     env_pex_info.update(self._pex_info_overrides)
     self._env = PEXEnvironment(self._pex, env_pex_info)
@@ -84,10 +85,10 @@ class PEX(object):  # noqa: T000
     if entry_point:
       TRACER.log('Using prescribed entry point: %s' % entry_point)
       return str(entry_point)
-  
+
   def get_script(self):
     """Return the script path and script content if this PEX is invoking a script.
-    
+
        Must be called after the environment has been activated.
     """
     if self._pex_info.script:
@@ -302,7 +303,7 @@ class PEX(object):  # noqa: T000
   def _execute(self):
     # TODO(wickman) update PEX_INTERPRETER semantics
     if 'PEX_INTERPRETER' in os.environ:
-      return self.execute_interpreter()          
+      return self.execute_interpreter()
 
     # TODO(wickman) This input validation should probably be in PexInfo
     if self._pex_info_overrides.script and self._pex_info_overrides.entry_point:
@@ -311,7 +312,7 @@ class PEX(object):  # noqa: T000
     # TODO(wickman) This input validation should probably be in PexBuilder
     if self._pex_info.script and self._pex_info.entry_point:
       die('Cannot specify both script and entry_point for a PEX!')
-  
+
     if self._pex_info_overrides.script:
       return self.execute_script(self._pex_info_overrides.script)
     elif self._pex_info_overrides.entry_point:
@@ -322,7 +323,7 @@ class PEX(object):  # noqa: T000
       return self.execute_entry(self._pex_info.entry_point)
     else:
       return self.execute_interpreter()
-  
+
   @classmethod
   def execute_interpreter(cls):
     force_interpreter = 'PEX_INTERPRETER' in os.environ
@@ -352,13 +353,16 @@ class PEX(object):  # noqa: T000
     if not dist:
       raise self.NotFound('Could not find script %s in pex!' % script_name)
     TRACER.log('Found script %s in %s' % (script_name, dist))
-    self.execute_content(script_path, script_content)
+    self.execute_content(script_path, script_content, argv0=script_name)
 
   @classmethod
-  def execute_content(cls, name, content):
+  def execute_content(cls, name, content, argv0=None):
+    argv0 = argv0 or name
     ast = compile(content, name, 'exec', flags=0, dont_inherit=1)
     old_name, old_file = globals().get('__name__'), globals().get('__file__')
     try:
+      old_argv0 = sys.argv[0]
+      sys.argv[0] = argv0
       globals()['__name__'] = '__main__'
       globals()['__file__'] = name
       exec_function(ast, globals())
@@ -371,6 +375,7 @@ class PEX(object):  # noqa: T000
         globals()['__file__'] = old_file
       else:
         globals().pop('__file__')
+      sys.argv[0] = old_argv0
 
   # TODO(wickman) Find a way to make PEX_PROFILE work with all execute_*
   @classmethod
@@ -409,7 +414,7 @@ class PEX(object):  # noqa: T000
       # setuptools < 11.3
       runner = entry.load(require=False)
     runner()
-  
+
   def cmdline(self, args=()):
     """The commandline to run this environment.
 

@@ -46,23 +46,23 @@ class PexInfo(object):
   # Environment options
   pex_root: ~/.pex                   # root of all pex-related files
                                      # PEX_ROOT
-                                     
+
   entry_point: string                # entry point into this pex
                                      # PEX_MODULE
-  
+
   script: string                     # script to execute in this pex environment
                                      # at most one of script/entry_point can be specified
                                      # PEX_SCRIPT
-                                     
+
   zip_safe: True, default False      # is this pex zip safe?
                                      # PEX_FORCE_LOCAL
-  
+
   inherit_path: True, default False  # should this pex inherit site-packages + PYTHONPATH?
                                      # PEX_INHERIT_PATH
-  
+
   ignore_errors: True, default False # should we ignore inability to resolve dependencies?
                                      # *PEX_IGNORE_ERRORS
-                                     
+
   always_write_cache: False          # should we always write the internal cache to disk first?
                                      # this is useful if you have very large dependencies that
                                      # do not fit in RAM constrained environments
@@ -76,15 +76,15 @@ class PexInfo(object):
   PATH = 'PEX-INFO'
   INTERNAL_CACHE = '.deps'
   ENVIRONMENT_VARIABLES = {
-      'PEX_ROOT': process_path('pex_root'),
-      'PEX_MODULE': process_name('entry_point'),
-      'PEX_SCRIPT': process_name('script'),
+      'PEX_ROOT': process_string('pex_root'),
+      'PEX_MODULE': process_string('entry_point'),
+      'PEX_SCRIPT': process_string('script'),
       'PEX_FORCE_LOCAL': process_bool('zip_safe', negate=True),
-      'PEX_INHERIT_PATH': process_path('inherit_path'),
+      'PEX_INHERIT_PATH': process_string('inherit_path'),
       'PEX_IGNORE_ERRORS': process_bool('ignore_errors'),
       'PEX_ALWAYS_CACHE': process_bool('always_write_cache'),
   }
-  
+
   @classmethod
   def make_build_properties(cls):
     from .interpreter import PythonInterpreter
@@ -121,7 +121,7 @@ class PexInfo(object):
     if isinstance(content, bytes):
       content = content.decode('utf-8')
     return cls(info=json.loads(content))
-  
+
   @classmethod
   def from_env(cls):
     pex_info = {}
@@ -161,12 +161,12 @@ class PexInfo(object):
       raise ValueError('Expected requirements to be a list, got %s' % type(requirements))
     self._requirements = OrderedSet(self._parse_requirement_tuple(req) for req in requirements)
 
-  def update(self, pex_info):
+  def update(self, other):
     if not isinstance(other, PexInfo):
-      raise TypeError('Cannot merge a %r with PexInfo' % type(pex_info))
-    self._pex_info.update(pex_info)
-    self._distributions.update(pex_info.distributions)
-    self._requirements.update(pex_info.requirements)
+      raise TypeError('Cannot merge a %r with PexInfo' % type(other))
+    self._pex_info.update(other._pex_info)
+    self._distributions.update(other.distributions)
+    self._requirements.update(other.requirements)
 
   @property
   def build_properties(self):
@@ -290,7 +290,7 @@ class PexInfo(object):
   @property
   def zip_unsafe_cache(self):
     return os.path.join(self.pex_root, 'code')
-  
+
   def dump(self):
     pex_info_copy = self._pex_info.copy()
     pex_info_copy['requirements'] = list(self._requirements)

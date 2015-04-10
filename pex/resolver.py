@@ -90,9 +90,10 @@ class ResolverOptionsBuilder(object):
     self._precedence = Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = Context.get()
 
-  # TODO(wickman) Resolve duplicates here
   def add_index(self, index):
-    self._fetchers.append(PyPIFetcher(index))
+    fetcher = PyPIFetcher(index)
+    if fetcher not in self._fetchers:
+      self._fetchers.append(fetcher)
     return self
 
   def set_index(self, index):
@@ -100,7 +101,9 @@ class ResolverOptionsBuilder(object):
     return self
 
   def add_repository(self, repo):
-    self._fetchers.append(Fetcher([repo]))
+    fetcher = Fetcher([repo])
+    if fetcher not in self._fetchers:
+      self._fetchers.append(fetcher)
     return self
 
   def clear_indices(self):

@@ -18,7 +18,7 @@ from pex.archiver import Archiver
 from pex.base import maybe_requirement
 from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
 from pex.crawler import Crawler
-from pex.fetcher import PyPIFetcher
+from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
 from pex.installer import EggInstaller, InstallerBase, Packager
 from pex.interpreter import PythonInterpreter
@@ -62,20 +62,27 @@ def process_pypi_option(option, option_str, option_value, parser, builder):
     builder.clear_indices()
   else:
     indices = getattr(parser.values, option.dest, [])
-    indices.append(PyPIFetcher())
+    pypi = PyPIFetcher()
+    if pypi not in indices:
+      indices.append(pypi)
     setattr(parser.values, option.dest, indices)
     builder.add_index(PyPIFetcher.PYPI_BASE)
 
 
 def process_find_links(option, option_str, option_value, parser, builder):
   repos = getattr(parser.values, option.dest, [])
+  repo = Fetcher([option_value])
+  if repo not in repos:
+    repos.append(repo)
   setattr(parser.values, option.dest, repos)
   builder.add_repository(option_value)
 
 
 def process_index_url(option, option_str, option_value, parser, builder):
   indices = getattr(parser.values, option.dest, [])
-  indices.append(PyPIFetcher(option_value))
+  index = PyPIFetcher(option_value)
+  if index not in indices:
+    indices.append(index)
   setattr(parser.values, option.dest, indices)
   builder.add_index(option_value)
 
@@ -111,8 +118,7 @@ def configure_clp_pex_resolution(parser, builder):
   group.add_option(
       '--pypi', '--no-pypi', '--no-index',
       action='callback',
-      dest='indices',
-      default=[],
+      dest='repos',
       callback=process_pypi_option,
       callback_args=(builder,),
       help='Whether to use pypi to resolve dependencies; Default: use pypi')
@@ -122,7 +128,6 @@ def configure_clp_pex_resolution(parser, builder):
       metavar='PATH/URL',
       action='callback',
       dest='repos',
-      default=[],
       callback=process_find_links,
       callback_args=(builder,),
       type=str,
@@ -132,8 +137,7 @@ def configure_clp_pex_resolution(parser, builder):
       '-i', '--index', '--index-url',
       metavar='URL',
       action='callback',
-      dest='indices',
-      default=[],
+      dest='repos',
       callback=process_index_url,
       callback_args=(builder,),
       type=str,
@@ -169,6 +173,8 @@ def configure_clp_pex_resolution(parser, builder):
       callback_args=(builder,),
       help='Whether to allow building of distributions from source; Default: allow builds')
 
+  # Set the pex tool to fetch from PyPI by default if nothing is specified.
+  parser.set_default('repos', [PyPIFetcher()])
   parser.add_option_group(group)
 
 
@@ -253,7 +259,6 @@ def configure_clp():
       'sources, requirements, their dependencies and other options.')
 
   parser = OptionParser(usage=usage, version='%prog {0}'.format(__version__))
-
   resolver_options_builder = ResolverOptionsBuilder()
   configure_clp_pex_resolution(parser, resolver_options_builder)
   configure_clp_pex_options(parser)
@@ -386,7 +391,7 @@ def interpreter_from_options(options):
     interpreter = PythonInterpreter.get()
 
   with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
-    fetchers = options.repos + options.indices
+    fetchers = options.repos
     resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, fetchers)
 
     # resolve setuptools

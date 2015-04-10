@@ -13,7 +13,7 @@ from site import USER_SITE
 import pkg_resources
 from pkg_resources import EntryPoint, find_distributions
 
-from .common import safe_mkdir
+from .common import die, safe_mkdir
 from .compatibility import exec_function
 from .environment import PEXEnvironment
 from .finders import get_script_from_distributions
@@ -31,12 +31,6 @@ class DevNull(object):
 
   def write(self, *args, **kw):
     pass
-
-
-# Make this part of common?
-def die(msg, exit_code=1):
-  print(msg, file=sys.stderr)
-  sys.exit(exit_code)
 
 
 class PEX(object):  # noqa: T000
@@ -73,34 +67,6 @@ class PEX(object):  # noqa: T000
     env_pex_info = self._pex_info.copy()
     env_pex_info.update(self._pex_info_overrides)
     self._env = PEXEnvironment(self._pex, env_pex_info)
-
-  '''
-  def get_entry_point(self):
-    """Return the module spec of the entry point of this PEX.
-
-      :returns: The entry point for this environment as a string, otherwise
-        ``None`` if there is no specific entry point.
-    """
-    entry_point = self._pex_info.entry_point
-    if entry_point:
-      TRACER.log('Using prescribed entry point: %s' % entry_point)
-      return str(entry_point)
-
-  def get_script(self):
-    """Return the script path and script content if this PEX is invoking a script.
-
-       Must be called after the environment has been activated.
-    """
-    if self._pex_info.script:
-      # TODO(wickman) Should PEXEnvironment just have .working_set as a property?
-      dist, script_path, script_content = get_script_from_distributions(
-          self._pex_info.script, self._env.activate())
-      if not dist:
-        raise self.NotFound('Could not find script %s in pex!' % self._pex_info.script)
-      TRACER.log('Found script %s in %s' % (self._pex_info.script, dist))
-      return script_path, script_content
-    return None, None
-  '''
 
   @classmethod
   def _extras_paths(cls):
@@ -336,8 +302,7 @@ class PEX(object):  # noqa: T000
         with open(sys.argv[1]) as fp:
           content = fp.read()
       except IOError as e:
-        print("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
-        sys.exit(1)
+        die("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
       name = sys.argv[1]
       sys.argv = sys.argv[1:]
       cls.execute_content(name, content)

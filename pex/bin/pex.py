@@ -19,7 +19,6 @@ from pex.base import maybe_requirement
 from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
 from pex.crawler import Crawler
 from pex.fetcher import PyPIFetcher
-from pex.finders import get_script_from_distributions
 from pex.http import Context
 from pex.installer import EggInstaller, InstallerBase, Packager
 from pex.interpreter import PythonInterpreter
@@ -264,7 +263,6 @@ def configure_clp_pex_entry_points(parser):
            'behaves like python -m, e.g. python -m SimpleHTTPServer.  If specifying '
            'module:symbol, pex imports that symbol and invokes it as if it were main.')
 
-  # XXX unify --console-script and --script
   group.add_option(
       '-c', '--script', '--console-script',
       dest='script',
@@ -422,46 +420,6 @@ def interpreter_from_options(options):
     return interpreter
 
 
-def get_entry_point_from_console_script(console_script, distributions):
-  for dist in distributions:
-    for console_script in dist.get_entry_map().get('console_scripts', {}).items():
-      if entry == console_script and (not name or name == dist.key):
-        return entry
-
-
-def set_entry_point(options, pex_info, distributions):
-  if options.entry_point and options.script:
-    print('Must specify at most one of --entry-point, --console-script or --script.',
-        file=sys.stderr)
-    sys.exit(INVALID_OPTIONS)
-
-  if options.entry_point:
-    log('Setting entry point to %s' % options.entry_point, v=options.verbosity)
-    pex_info.entry_point = options.entry_point
-  elif options.script:
-    entry_point = get_entry_point_from_console_script(options.script, distributions)
-
-    if entry_point:
-      log('Setting entry point to %s (console script: %s)' % (
-          entry_point, script), v=options.verbosity)
-      pex_info.entry_point = entry_point
-      return
-
-    script_path, _, _ = get_script_from_distributions(
-        options.script, distributions)
-
-    if script_path:
-      log('Setting script to %s' % options.script, v=options.verbosity)
-      pex_info.script = options.script
-      return
-
-    print('Failed to find script with name %s!' % options.script, file=sys.stderr)
-    sys.exit(INVALID_ENTRY_POINT)
-  else:
-    # REPL-based pex
-    log('Creating environment PEX.', v=options.verbosity)
-
-
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreter', V=2):
     interpreter = interpreter_from_options(options)  # XXX calls fetcher_from_options
@@ -512,7 +470,15 @@ def build_pex(args, options, resolver_option_builder):
     pex_builder.add_distribution(dist)
     pex_builder.add_requirement(dist.as_requirement())
 
-  set_entry_point(options, pex_builder.info, resolveds)
+  if options.entry_point and options.script:
+    print('Must specify at most one of --entry-point, --console-script or --script.',
+        file=sys.stderr)
+    sys.exit(INVALID_OPTIONS)
+
+  if options.entry_point:
+    pex_builder.set_entry_point(options.entry_point)
+  elif options.script:
+    pex_builder.set_script(options.script)
 
   return pex_builder
 

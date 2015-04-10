@@ -1,5 +1,7 @@
-# Copyright 2014 Pants project contributors (see CONTRIBUTORS.md).
+# Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+import os
 
 from .resolvable import Resolvable
 from .resolver import ResolverOptionsBuilder
@@ -22,7 +24,9 @@ def _get_parameter(line):
   return sline[1]
 
 
-def _process_one_line(builder, line):
+# Process lines in the requirements.txt format as defined here:
+# https://pip.pypa.io/en/latest/reference/pip_install.html#requirements-file-format
+def _process_one_line(builder, line, relpath):
   line = line.strip()
   resolvables = []
   if not line or line.startswith('#'):
@@ -43,22 +47,32 @@ def _process_one_line(builder, line):
     builder.allow_unverified(_get_parameter(line))
   elif line.startswith('--no-index'):
     builder.clear_indices()
+  elif line.startswith('--no-use-wheel'):
+    builder.no_use_wheel()
   elif _startswith_any(line, ('-r ', '--requirement')):
-    # TODO(wickman) Should this be relativized?
-    resolvables, builder = requirements_from_file(_get_parameter(line), builder)
+    path = os.path.join(relpath, _get_parameter(line))
+    # TODO(wickman) Consider creating a new scope so that -i and other options
+    # in downstream requirements.txts do not override global scope, or at least warn
+    # if overriding scope in a nested requirement.
+    resolvables, builder = requirements_from_file(path, builder)
   else:
-    resolvables.append(Resolvable.get(line))
+    try:
+      resolvables.append(Resolvable.get(line))
+    except Resolvable.InvalidRequirement:
+      raise UnsupportedLine('Unsupported requirements.txt option: %s' % line)
   return resolvables
 
 
-def requirements_from_lines(lines, builder=None):
+def requirements_from_lines(lines, builder=None, relpath=None):
+  relpath = relpath or os.getcwd()
   builder = builder or ResolverOptionsBuilder()
   resolvables = []
   for line in lines:
-    resolvables.extend(_process_one_line(builder, line))
+    resolvables.extend(_process_one_line(builder, line, relpath))
   return resolvables, builder
 
 
 def requirements_from_file(filename, builder=None):
+  relpath = os.path.dirname(filename)
   with open(filename, 'r') as fp:
-    return requirements_from_lines(fp.readlines(), builder=builder)
+    return requirements_from_lines(fp.readlines(), builder=builder, relpath=relpath)

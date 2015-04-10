@@ -62,6 +62,9 @@ class Resolvable(AbstractClass):
   def exact(self):
     pass
 
+  # TODO(wickman) Currently 'interpreter' is unused but it is reserved for environment
+  # marker evaluation per PEP426 and:
+  # https://bitbucket.org/pypa/setuptools/issue/353/allow-distributionrequires-be-evaluated
   @abstractmethod
   def extras(self, interpreter=None):
     pass
@@ -78,6 +81,7 @@ class ResolvableRepository(Resolvable):
       # further delegate
       pass
 
+    # TODO(wickman) Implement.
     raise cls.InvalidRequirement('Versioning system URLs not supported.')
 
   def packages(self, finder):
@@ -98,6 +102,7 @@ class ResolvableRepository(Resolvable):
 class ResolvablePackage(Resolvable):
   """A package (.tar.gz, .egg, .whl, etc) resolvable."""
 
+  # TODO(wickman) Implement extras parsing for ResolvablePackage
   @classmethod
   def from_string(cls, requirement_string):
     package = Package.from_href(requirement_string)
@@ -121,6 +126,9 @@ class ResolvablePackage(Resolvable):
 
   def extras(self, interpreter=None):
     return []
+
+  def __eq__(self, other):
+    return isinstance(other, ResolvablePackage) and self.package == other.package
 
   def __hash__(self):
     return hash(self.package)
@@ -158,7 +166,10 @@ class ResolvableRequirement(Resolvable):
     return requirement_is_exact(self.requirement)
 
   def extras(self, interpreter=None):
-    return self.requirement.extras
+    return list(self.requirement.extras)
+
+  def __eq__(self, other):
+    return isinstance(other, ResolvableRequirement) and self.requirement == other.requirement
 
   def __hash__(self):
     return hash(self.requirement)

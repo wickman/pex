@@ -75,29 +75,34 @@ def test_index_types():
 
 
 def test_nested_requirements():
-  with temporary_dir() as td:
-    # TODO(wickman) It seems crazy that requirements.txt would not support relativized
-    # paths.
-    with open(os.path.join(td, 'requirements1.txt'), 'w') as fp:
-      fp.write(dedent('''
-      requirement1
-      requirement2
-      -r %s
-      ''' % os.path.join(td, 'requirements2.txt')))
+  with temporary_dir() as td1:
+    with temporary_dir() as td2:
+      with open(os.path.join(td1, 'requirements.txt'), 'w') as fp:
+        fp.write(dedent('''
+            requirement1
+            requirement2
+            -r %s
+            -r %s
+        ''' % (
+            os.path.join(td2, 'requirements_nonrelative.txt'),
+            os.path.join(td1, 'relative', 'requirements_relative.txt'))
+        ))
 
-    with open(os.path.join(td, 'requirements2.txt'), 'w') as fp:
-      fp.write(dedent('''
-      requirement3
-      requirement4
-      '''))
+      with open(os.path.join(td2, 'requirements_nonrelative.txt'), 'w') as fp:
+        fp.write(dedent('''
+        requirement3
+        requirement4
+        '''))
 
-    def rr(req):
-      return ResolvableRequirement(Requirement.parse(req))
+      os.mkdir(os.path.join(td1, 'relative'))
+      with open(os.path.join(td1, 'relative', 'requirements_relative.txt'), 'w') as fp:
+        fp.write(dedent('''
+        requirement5
+        requirement6
+        '''))
 
-    reqs, builder = requirements_from_file(os.path.join(td, 'requirements1.txt'))
-    assert reqs == [
-      rr('requirement1'),
-      rr('requirement2'),
-      rr('requirement3'),
-      rr('requirement4'),
-    ]
+      def rr(req):
+        return ResolvableRequirement(Requirement.parse(req))
+
+      reqs, builder = requirements_from_file(os.path.join(td1, 'requirements.txt'))
+      assert reqs == [rr('requirement%d' % k) for k in (1, 2, 3, 4, 5, 6)]

@@ -13,7 +13,7 @@ from .package import Package
 class IteratorInterface(AbstractClass):
   @abstractmethod
   def iter(self, req):
-    """Return a list of packages that satisfy the requirement in best match order."""
+    """Return a list of packages that satisfy the requirement."""
     pass
 
 

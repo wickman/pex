@@ -51,7 +51,7 @@ class ResolvableSet(object):
 
   def __init__(self):
     self.__resolvables = defaultdict(set)
-    self.__packages = defaultdict(list)
+    self.__packages = defaultdict(set)
 
   def merge(self, resolvable, packages):
     """Add a resolvable and its resolved packages."""
@@ -66,11 +66,11 @@ class ResolvableSet(object):
           map(str, self.__resolvables[resolvable.name])))
 
   def get(self, name):
-    return list(self.__packages.get(name, []))  # make a copy
+    return self.__packages.get(name, set()).copy()
 
   def packages(self):
-    """Returns a mapping of name => best package for resolvables in this ResolvableSet."""
-    return self.__packages.copy()
+    """Return a snapshot of packages in the resolvable set."""
+    return dict(self.__packages.copy())
 
   def extras(self, name):
     return set.union(*[set(resolvable.extras()) for resolvable in self.__resolvables[name]])

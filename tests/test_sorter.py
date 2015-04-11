@@ -38,3 +38,8 @@ def test_sorter_sort():
 
   assert Sorter().sort([tgz, egg, whl]) == [whl, egg, tgz]
   assert Sorter().sort([egg, tgz, whl]) == [whl, egg, tgz]
+
+  # test unknown type
+  sorter = Sorter(precedence=(EggPackage, WheelPackage))
+  assert sorter.sort([egg, tgz, whl], filter=False) == [egg, whl, tgz]
+  assert sorter.sort([egg, tgz, whl], filter=True) == [egg, whl]

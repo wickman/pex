@@ -44,8 +44,7 @@ class StaticIterator(IteratorInterface):
         yield package
 
 
-# An internal set of resolvables/packages, not part of the public API.
-class ResolvableSet(object):
+class _ResolvableSet(object):
   class Error(Exception): pass
   class Unsatisfiable(Error): pass
 
@@ -220,10 +219,7 @@ class Resolver(object):
     return [package for package in packages
         if package.compatible(interpreter.identity, platform)]
 
-  def __init__(self,
-               interpreter=None,
-               platform=None,
-               options=None):
+  def __init__(self, interpreter=None, platform=None, options=None):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = platform or Platform.current()
     self._options = options or ResolverOptions()
@@ -251,7 +247,7 @@ class Resolver(object):
 
   def resolve(self, resolvables, resolvable_set=None):
     resolvables = list(resolvables)
-    resolvable_set = resolvable_set or ResolvableSet()
+    resolvable_set = resolvable_set or _ResolvableSet()
     processed_resolvables = set()
     processed_packages = {}
     distributions = {}

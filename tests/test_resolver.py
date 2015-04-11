@@ -6,7 +6,7 @@ import os
 from pex.common import safe_copy
 from pex.fetcher import Fetcher
 from pex.package import SourcePackage, EggPackage
-from pex.resolver import resolve, ResolvableSet
+from pex.resolver import resolve, _ResolvableSet
 from pex.resolvable import ResolvableRequirement
 from pex.testing import make_sdist
 
@@ -35,7 +35,7 @@ def test_simple_local_resolve():
 
 
 def test_resolvable_set():
-  rs = ResolvableSet()
+  rs = _ResolvableSet()
   rq = ResolvableRequirement.from_string('foo[ext]')
   source_pkg = SourcePackage.from_href('foo-2.3.4.tar.gz')
   binary_pkg = EggPackage.from_href('foo-2.3.4-py3.4.egg')
@@ -56,9 +56,8 @@ def test_resolvable_set():
   rs.merge(rq, [source_pkg])
   assert rs.get('foo') == set([source_pkg])
 
-  with pytest.raises(ResolvableSet.Unsatisfiable):
+  with pytest.raises(_ResolvableSet.Unsatisfiable):
     rs.merge(rq, [binary_pkg])
 
 
-def test_caching_resolver():
-  pass
+# TODO(wickman) Write more than simple resolver test.

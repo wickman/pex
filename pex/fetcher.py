@@ -49,7 +49,6 @@ class PyPIFetcher(FetcherBase):
 
     pypi_url = urlparse.urlparse(pypi_base)
     if not pypi_url.scheme:
-      print('pypi_url: %r' % (pypi_url,))
       self._pypi_base = 'http://' + pypi_base
     else:
       self._pypi_base = pypi_base

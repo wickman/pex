@@ -53,11 +53,15 @@ class Resolvable(AbstractClass):
 
   @abstractmethod
   def compatible(self, iterator):
-    """XXX"""
+    """Given a finder of type :class:`Iterator` (possibly ignored), determine which packages
+       are compatible with this resolvable.
+
+    :returns: An iterable of compatible :class:`Package` objects.
+    """
 
   @abstractmethod
   def packages(self):
-    """Given a finder of type :class:`Iterable` (possibly ignored), resolve packages.
+    """Return a list of :class:`Package` objects that this resolvable resolves.
 
     :returns: An iterable of compatible :class:`Package` objects.
     """
@@ -67,7 +71,7 @@ class Resolvable(AbstractClass):
     """The distribution key associated with this resolvable, i.e. the name of the packages
        this resolvable will produce."""
 
-  # TODO(wickman) Call this cacheable?
+  # TODO(wickman) Call this "cacheable" instead?
   @abstractproperty
   def exact(self):
     """Whether or not this resolvable specifies an exact (cacheable) requirement."""
@@ -75,9 +79,9 @@ class Resolvable(AbstractClass):
   # TODO(wickman) Currently 'interpreter' is unused but it is reserved for environment
   # marker evaluation per PEP426 and:
   # https://bitbucket.org/pypa/setuptools/issue/353/allow-distributionrequires-be-evaluated
-  @abstractmethod
   def extras(self, interpreter=None):
-    pass
+    """Return the "extras" tags associated with this resolvable if any."""
+    return []
 
 
 class ResolvableRepository(Resolvable):
@@ -93,7 +97,7 @@ class ResolvableRepository(Resolvable):
 
     # TODO(wickman) Implement.
     raise cls.InvalidRequirement('Versioning system URLs not supported.')
-  
+
   def __init__(self, options):
     super(ResolvableRepository, self).__init__(options)
 
@@ -110,9 +114,6 @@ class ResolvableRepository(Resolvable):
   @property
   def exact(self):
     return True
-
-  def extras(self, interpreter=None):
-    return []
 
 
 class ResolvablePackage(Resolvable):
@@ -144,9 +145,10 @@ class ResolvablePackage(Resolvable):
   def exact(self):
     return True
 
+  # TODO(wickman) Implement extras parsing for ResolvablePackages
   def extras(self, interpreter=None):
     return []
-  
+
   def __eq__(self, other):
     return isinstance(other, ResolvablePackage) and self.package == other.package
 
@@ -195,7 +197,7 @@ class ResolvableRequirement(Resolvable):
 
   def extras(self, interpreter=None):
     return list(self.requirement.extras)
-  
+
   def __eq__(self, other):
     return isinstance(other, ResolvableRequirement) and self.requirement == other.requirement
 
@@ -211,7 +213,8 @@ Resolvable.register(ResolvablePackage)
 Resolvable.register(ResolvableRequirement)
 
 
-# TODO(wickman) maybe have Resolvable.from_concrete and delegate to that.
+# TODO(wickman) Because we explicitly acknowledge all implementations of Resolvable here,
+# perhaps move away from a registry pattern and integrate into Resolvable classmethod.
 def resolvables_from_iterable(iterable, builder):
   """Given an iterable of resolvable-like objects, return list of Resolvable objects.
 

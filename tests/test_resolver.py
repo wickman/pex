@@ -11,7 +11,11 @@ from pex.resolvable import ResolvableRequirement
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.testing import make_sdist
 
-import mock
+try:
+  from unittest import mock
+except ImportError:
+  import mock
+
 import pytest
 from twitter.common.contextutil import temporary_dir
 

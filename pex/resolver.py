@@ -51,9 +51,18 @@ class _ResolvableSet(object):
   class Unsatisfiable(Error): pass
 
   def __init__(self):
+    # Pairs of (resolvable, resolved_packages)
     self.__tuples = []
-  
+
   def _collapse(self):
+    # Collapse all resolvables by name along with the intersection of all compatible packages.
+    # If the set of compatible packages is the empty set, then we cannot satisfy all the
+    # specifications for a particular name (e.g. "setuptools==2.2 setuptools>4".)
+    #
+    # We need to return the resolvable since it carries its own network context and configuration
+    # regarding package precedence.  This is arbitrary -- we could just as easily say "last
+    # resolvable wins" but it seems highly unlikely this will materially affect anybody
+    # adversely but could be the source of subtle resolution quirks.
     resolvables = {}
     for resolvable, packages in self.__tuples:
       first_resolvable, old_packages = resolvables.get(resolvable.name, (None, OrderedSet()))
@@ -62,8 +71,9 @@ class _ResolvableSet(object):
       else:
         resolvables[resolvable.name] = (first_resolvable, old_packages & packages)
     return resolvables
-  
+
   def _check(self):
+    # Check whether or not the resolvables in this set are satisfiable, raise an exception if not.
     resolvables = self._collapse()
     for name, (resolvable, packages) in self._collapse().items():
       if not packages:
@@ -75,11 +85,12 @@ class _ResolvableSet(object):
     self._check()
 
   def get(self, name):
+     """Get the set of compatible packages given a resolvable name."""
      resolvable, packages = self._collapse().get(name, (None, OrderedSet()))
      return packages
 
   def packages(self):
-    """Return a snapshot of packages in the resolvable set."""
+    """Return a snapshot of resolvable => compatible packages set from the resolvable set."""
     return list(self._collapse().values())
 
   def extras(self, name):
@@ -271,17 +282,12 @@ def resolve(
     classes.
   """
 
-  builder = ResolverOptionsBuilder()
-  
-  if fetchers is not None:
-    builder.set_fetchers(fetchers)
-  
-  if precedence is not None:
-    builder.set_precedence(precedence)
-  
-  if context:
-    builder.set_context(context)
-  
+  builder = ResolverOptionsBuilder(
+      fetchers=fetchers,
+      precedence=precedence,
+      context=context,
+  )
+
   if cache:
     resolver = CachingResolver(cache, cache_ttl, interpreter=interpreter, platform=platform)
   else:

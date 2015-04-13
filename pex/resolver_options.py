@@ -37,30 +37,29 @@ class ResolverOptionsBuilder(object):
 
   Used by command-line and requirements.txt processors to configure a resolver.
   """
-  @classmethod
-  def from_existing(cls, parent):
-    if not isinstance(parent, ResolverOptionsBuilder):
-      raise TypeError('Cannot spawn new ResolverOptionsBuilder from %s' % type(parent))
-    builder = cls()
-    builder._fetchers = parent._fetchers[:]
-    builder._allow_all_external = parent._allow_all_external
-    builder._allow_external = parent._allow_external.copy()
-    builder._allow_unverified = parent._allow_unverified.copy()
-    builder._precedence = parent._precedence[:]
-    builder._context = parent._context
-    return builder
+  def __init__(self,
+               fetchers=None,
+               allow_all_external=False,
+               allow_external=None,
+               allow_unverified=None,
+               precedence=None,
+               context=None):
+    self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
+    self._allow_all_external = allow_all_external
+    self._allow_external = allow_external if allow_external is not None else set()
+    self._allow_unverified = allow_unverified if allow_unverified is not None else set()
+    self._precedence = precedence if precedence is not None else Sorter.DEFAULT_PACKAGE_PRECEDENCE
+    self._context = context or Context.get()
 
-  def __init__(self):
-    self._fetchers = [PyPIFetcher()]
-    self._allow_all_external = False
-    self._allow_external = set()
-    self._allow_unverified = set()
-    self._precedence = Sorter.DEFAULT_PACKAGE_PRECEDENCE
-    self._context = Context.get()
-  
-  # Just make these constructable XXXXX
-  def set_fetchers(self, fetchers):
-    self._fetchers = fetchers[:]
+  def clone(self):
+    return ResolverOptionsBuilder(
+        fetchers=self._fetchers[:],
+        allow_all_external=self._allow_all_external,
+        allow_external=self._allow_external.copy(),
+        allow_unverified=self._allow_unverified.copy(),
+        precedence=self._precedence[:],
+        context=self._context,
+    )
 
   def add_index(self, index):
     fetcher = PyPIFetcher(index)
@@ -114,14 +113,6 @@ class ResolverOptionsBuilder(object):
         [precedent for precedent in self._precedence if precedent is not SourcePackage])
     return self
 
-  def set_context(self, context):
-    self._context = context
-    return self
-
-  def set_precedence(self, precedence):
-    self._precedence = precedence
-    return self
-
   def build(self, key):
     return ResolverOptions(
         fetchers=self._fetchers,
@@ -143,10 +134,10 @@ class ResolverOptions(ResolverOptionsInterface):
     self._allow_external = allow_external
     self._allow_unverified = allow_unverified
     self._precedence = precedence if precedence is not None else Sorter.DEFAULT_PACKAGE_PRECEDENCE
-    self._context = context or Context.get()  # TODO(wickman) Revisit with #58
+    self._context = context or Context.get()
 
+  # TODO(wickman) Revisit with Github #58
   def get_context(self):
-    # XXX allow_unverified per #58
     return self._context
 
   def get_crawler(self):

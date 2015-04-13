@@ -31,7 +31,7 @@ class RequirementsTxtSentinel(object):
 
 def requirements_from_lines(lines, builder=None, relpath=None):
   relpath = relpath or os.getcwd()
-  builder = ResolverOptionsBuilder.from_existing(builder) if builder else ResolverOptionsBuilder()
+  builder = builder.clone() if builder else ResolverOptionsBuilder()
   to_resolve = []
 
   for line in lines:
@@ -65,7 +65,7 @@ def requirements_from_lines(lines, builder=None, relpath=None):
       to_resolve.append(line)
 
   resolvables = []
-  
+
   for resolvable in to_resolve:
     if isinstance(resolvable, RequirementsTxtSentinel):
       resolvables.extend(requirements_from_file(resolvable.filename, builder=builder))

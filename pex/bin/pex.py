@@ -389,8 +389,7 @@ def interpreter_from_options(options):
     interpreter = PythonInterpreter.get()
 
   with TRACER.timed('Setting up interpreter %s' % interpreter.binary, V=2):
-    fetchers = options.repos
-    resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, fetchers)
+    resolve = functools.partial(resolve_interpreter, options.interpreter_cache_dir, options.repos)
 
     # resolve setuptools
     interpreter = resolve(interpreter, __setuptools_requirement)
@@ -402,10 +401,9 @@ def interpreter_from_options(options):
     return interpreter
 
 
-# XXX dhis all wrong
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreter', V=2):
-    interpreter = interpreter_from_options(options)  # XXX calls fetcher_from_options
+    interpreter = interpreter_from_options(options)
 
   if interpreter is None:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
@@ -419,7 +417,7 @@ def build_pex(args, options, resolver_option_builder):
   pex_info.inherit_path = options.inherit_path
 
   resolvables = [Resolvable.get(arg, resolver_option_builder) for arg in args]
-  
+
   for requirements_txt in options.requirement_files:
     resolvables.extend(requirements_from_file(requirements_txt, resolver_options_builder))
 

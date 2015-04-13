@@ -32,7 +32,6 @@ class Resolvable(AbstractClass):
 
   class Error(Exception): pass
   class InvalidRequirement(Error): pass
-  class ResolverFailure(Error): pass
 
   _REGISTRY = []
 
@@ -242,7 +241,7 @@ class ResolvableDirectory(ResolvablePackage):
         # metadata in setup.cfg or whatever, then we can get the interpreter out of the equation.
         sdist = Packager(requirement_string).sdist()
       except InstallerBase.Error:
-        raise self.InvalidRequirement('Could not create source distribution for %s' %
+        raise cls.InvalidRequirement('Could not create source distribution for %s' %
             requirement_string)
       package = Package.from_href(sdist)
       return ResolvablePackage(package, options_builder.build(package.name), extras=extras)

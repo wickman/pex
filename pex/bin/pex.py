@@ -20,7 +20,7 @@ from pex.common import safe_delete, safe_mkdir, safe_mkdtemp
 from pex.crawler import Crawler
 from pex.fetcher import Fetcher, PyPIFetcher
 from pex.http import Context
-from pex.installer import EggInstaller, InstallerBase, Packager
+from pex.installer import EggInstaller
 from pex.interpreter import PythonInterpreter
 from pex.iterator import Iterator
 from pex.package import EggPackage, SourcePackage
@@ -28,7 +28,7 @@ from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
-from pex.resolvable import Resolvable, ResolvablePackage
+from pex.resolvable import Resolvable
 from pex.resolver import CachingResolver, Resolver
 from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER, TraceLogger

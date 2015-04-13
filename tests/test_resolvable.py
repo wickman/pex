@@ -8,12 +8,14 @@ from pex.iterator import Iterator
 from pex.package import Package, SourcePackage
 from pex.resolvable import (
     Resolvable,
+    ResolvableDirectory,
     ResolvablePackage,
     ResolvableRepository,
     ResolvableRequirement,
     resolvables_from_iterable
 )
 from pex.resolver_options import ResolverOptionsBuilder
+from pex.testing import make_source_dir
 
 try:
   from unittest import mock
@@ -74,6 +76,19 @@ def test_resolvable_requirement():
   # test Resolvable.get, which should delegate to a ResolvableRequirement in this case
   assert Resolvable.get('foo') == ResolvableRequirement.from_string(
       'foo', ResolverOptionsBuilder())
+
+
+def test_resolvable_directory():
+  builder = ResolverOptionsBuilder()
+
+  with make_source_dir(name='my_project') as td:
+    rdir = ResolvableDirectory.from_string(td, builder)
+    assert rdir.name == pkg_resources.safe_name('my_project')
+    assert rdir.extras() == []
+
+    rdir = ResolvableDirectory.from_string(td + '[extra1,extra2]', builder)
+    assert rdir.name == pkg_resources.safe_name('my_project')
+    assert rdir.extras() == ['extra1', 'extra2']
 
 
 def test_resolvables_from_iterable():

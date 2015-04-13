@@ -244,7 +244,8 @@ class ResolvableDirectory(ResolvablePackage):
       except InstallerBase.Error:
         raise self.InvalidRequirement('Could not create source distribution for %s' %
             requirement_string)
-      return ResolvablePackage(Package.from_href(sdist), options_builder.build(), extras=extras)
+      package = Package.from_href(sdist)
+      return ResolvablePackage(package, options_builder.build(package.name), extras=extras)
     else:
       raise cls.InvalidRequirement('%s does not appear to be an installable directory.'
           % requirement_string)

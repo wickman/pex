@@ -114,20 +114,13 @@ class ResolverOptionsBuilder(object):
         [precedent for precedent in self._precedence if precedent is not SourcePackage])
     return self
 
-  def build(self, key=None):
-    allow_options = dict()
-
-    if key is not None:
-      allow_options.update(
-          allow_external=self._allow_all_external or key in self._allow_external,
-          allow_unverified=key in self._allow_unverified,
-      )
-
+  def build(self, key):
     return ResolverOptions(
         fetchers=self._fetchers,
+        allow_external=self._allow_all_external or key in self._allow_external,
+        allow_unverified=key in self._allow_unverified,
         precedence=self._precedence,
         context=self._context,
-        **allow_options
     )
 
 

@@ -6,9 +6,10 @@ from abc import abstractmethod, abstractproperty
 from pkg_resources import Requirement
 
 from .base import maybe_requirement, requirement_is_exact
-from .compatibility import AbstractClass, string as compatibility_string
+from .compatibility import string as compatibility_string
+from .compatibility import AbstractClass
 from .package import Package
-from .resolver_options import ResolverOptionsBuilder, ResolverOptions
+from .resolver_options import ResolverOptionsBuilder
 
 
 class Resolvable(AbstractClass):
@@ -174,9 +175,6 @@ class ResolvableRequirement(Resolvable):
   def __init__(self, requirement, options):
     self.requirement = requirement
     super(ResolvableRequirement, self).__init__(options)
-
-  def __eq__(self, other):
-    return isinstance(other, ResolvableRequirement) and self.requirement == other.requirement
 
   def compatible(self, iterator):
     sorter = self.options.get_sorter()

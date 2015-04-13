@@ -37,6 +37,7 @@ class ResolverOptionsBuilder(object):
 
   Used by command-line and requirements.txt processors to configure a resolver.
   """
+
   def __init__(self,
                fetchers=None,
                allow_all_external=False,

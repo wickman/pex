@@ -23,7 +23,7 @@ from pex.http import Context
 from pex.installer import EggInstaller, InstallerBase, Packager
 from pex.interpreter import PythonInterpreter
 from pex.iterator import Iterator
-from pex.package import EggPackage, Package, SourcePackage
+from pex.package import EggPackage, SourcePackage
 from pex.pex import PEX
 from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
@@ -419,7 +419,7 @@ def build_pex(args, options, resolver_option_builder):
   resolvables = [Resolvable.get(arg, resolver_option_builder) for arg in args]
 
   for requirements_txt in options.requirement_files:
-    resolvables.extend(requirements_from_file(requirements_txt, resolver_options_builder))
+    resolvables.extend(requirements_from_file(requirements_txt, resolver_option_builder))
 
   if options.source_dirs:
     for source_dir in options.source_dirs:

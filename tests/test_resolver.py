@@ -3,21 +3,16 @@
 
 import os
 
-from pex.common import safe_copy
-from pex.fetcher import Fetcher
-from pex.package import SourcePackage, EggPackage
-from pex.resolver import resolve, _ResolvableSet
-from pex.resolvable import ResolvableRequirement
-from pex.resolver_options import ResolverOptionsBuilder
-from pex.testing import make_sdist
-
-try:
-  from unittest import mock
-except ImportError:
-  import mock
-
 import pytest
 from twitter.common.contextutil import temporary_dir
+
+from pex.common import safe_copy
+from pex.fetcher import Fetcher
+from pex.package import EggPackage, SourcePackage
+from pex.resolvable import ResolvableRequirement
+from pex.resolver import _ResolvableSet, resolve
+from pex.resolver_options import ResolverOptionsBuilder
+from pex.testing import make_sdist
 
 
 def test_empty_resolve():

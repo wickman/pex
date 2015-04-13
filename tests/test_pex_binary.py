@@ -1,11 +1,7 @@
 from contextlib import contextmanager
 from optparse import OptionParser
 
-from pex.bin.pex import (
-    configure_clp_pex_resolution,
-    configure_clp_pex_options,
-    configure_clp_pex_environment,
-)
+from pex.bin.pex import configure_clp_pex_resolution
 from pex.fetcher import PyPIFetcher
 from pex.package import SourcePackage, WheelPackage
 from pex.resolver_options import ResolverOptionsBuilder

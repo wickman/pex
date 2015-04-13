@@ -6,24 +6,16 @@ from __future__ import print_function
 import os
 import shutil
 import time
-from collections import defaultdict
 
-from pkg_resources import safe_name
-
-from .crawler import Crawler
-from .fetcher import Fetcher, PyPIFetcher
-from .http import Context
-from .installer import EggInstaller, WheelInstaller
+from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
 from .orderedset import OrderedSet
-from .package import EggPackage, Package, SourcePackage, WheelPackage, distribution_compatible
+from .package import Package, distribution_compatible
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
 from .resolver_options import ResolverOptionsBuilder
-from .sorter import Sorter
 from .tracer import TRACER
-from .translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
 
 
 class Untranslateable(Exception):
@@ -74,7 +66,6 @@ class _ResolvableSet(object):
 
   def _check(self):
     # Check whether or not the resolvables in this set are satisfiable, raise an exception if not.
-    resolvables = self._collapse()
     for name, (resolvable, packages) in self._collapse().items():
       if not packages:
         raise self.Unsatisfiable('Could not satisfy all requirements for %s' % resolvable)
@@ -85,9 +76,9 @@ class _ResolvableSet(object):
     self._check()
 
   def get(self, name):
-     """Get the set of compatible packages given a resolvable name."""
-     resolvable, packages = self._collapse().get(name, (None, OrderedSet()))
-     return packages
+    """Get the set of compatible packages given a resolvable name."""
+    resolvable, packages = self._collapse().get(name, (None, OrderedSet()))
+    return packages
 
   def packages(self):
     """Return a snapshot of resolvable => compatible packages set from the resolvable set."""

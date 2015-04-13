@@ -1,19 +1,19 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import pkg_resources
+import pytest
+
 from pex.iterator import Iterator
-from pex.package import SourcePackage, Package
+from pex.package import Package, SourcePackage
 from pex.resolvable import (
     Resolvable,
     ResolvablePackage,
     ResolvableRepository,
     ResolvableRequirement,
-    resolvables_from_iterable,
+    resolvables_from_iterable
 )
-from pex.resolver_options import ResolverOptionsBuilder, ResolverOptions
-
-import pkg_resources
-import pytest
+from pex.resolver_options import ResolverOptionsBuilder
 
 try:
   from unittest import mock

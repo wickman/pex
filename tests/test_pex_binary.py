@@ -8,7 +8,7 @@ from pex.bin.pex import (
 )
 from pex.fetcher import PyPIFetcher
 from pex.package import SourcePackage, WheelPackage
-from pex.resolver import ResolverOptionsBuilder
+from pex.resolver_options import ResolverOptionsBuilder
 from pex.sorter import Sorter
 
 

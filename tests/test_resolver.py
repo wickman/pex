@@ -8,6 +8,7 @@ from pex.fetcher import Fetcher
 from pex.package import SourcePackage, EggPackage
 from pex.resolver import resolve, _ResolvableSet
 from pex.resolvable import ResolvableRequirement
+from pex.resolver_options import ResolverOptionsBuilder
 from pex.testing import make_sdist
 
 import mock
@@ -35,19 +36,15 @@ def test_simple_local_resolve():
 
 
 def test_resolvable_set():
+  builder = ResolverOptionsBuilder()
   rs = _ResolvableSet()
-  rq = ResolvableRequirement.from_string('foo[ext]')
+  rq = ResolvableRequirement.from_string('foo[ext]', builder)
   source_pkg = SourcePackage.from_href('foo-2.3.4.tar.gz')
   binary_pkg = EggPackage.from_href('foo-2.3.4-py3.4.egg')
 
   rs.merge(rq, [source_pkg, binary_pkg])
   assert rs.get('foo') == set([source_pkg, binary_pkg])
-  assert rs.packages() == {'foo': set([source_pkg, binary_pkg])}
-
-  # test immutability
-  packages = rs.packages()
-  packages['foo'] = []
-  assert rs.get('foo') == set([source_pkg, binary_pkg])
+  assert rs.packages() == [(rq, set([source_pkg, binary_pkg]))]
 
   # test methods
   assert rs.extras('foo') == set(['ext'])

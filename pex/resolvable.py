@@ -6,9 +6,9 @@ from abc import abstractmethod, abstractproperty
 from pkg_resources import Requirement
 
 from .base import maybe_requirement, requirement_is_exact
-from .compatibility import string as compatibility_string
-from .compatibility import AbstractClass
+from .compatibility import AbstractClass, string as compatibility_string
 from .package import Package
+from .resolver_options import ResolverOptionsBuilder, ResolverOptions
 
 
 class Resolvable(AbstractClass):
@@ -24,21 +24,22 @@ class Resolvable(AbstractClass):
     cls._REGISTRY.append(implementation)
 
   @classmethod
-  def get(cls, resolvable_string):
+  def get(cls, resolvable_string, options_builder=None):
     """Get a :class:`Resolvable` from a string.
 
     :returns: A :class:`Resolvable` or ``None`` if no implementation was appropriate.
     """
+    options_builder = options_builder or ResolverOptionsBuilder()
     for resolvable_impl in cls._REGISTRY:
       try:
-        return resolvable_impl.from_string(resolvable_string)
+        return resolvable_impl.from_string(resolvable_string, options_builder)
       except cls.InvalidRequirement:
         continue
     raise cls.InvalidRequirement('Unknown requirement type: %s' % resolvable_string)
 
   # @abstractmethod - Only available in Python 3.3+
   @classmethod
-  def from_string(cls, requirement_string, options):
+  def from_string(cls, requirement_string, options_builder):
     """Produce a resolvable from this requirement string.
 
     :returns: Instance of the particular Resolvable implementation.
@@ -85,7 +86,7 @@ class ResolvableRepository(Resolvable):
   COMPATIBLE_VCS = frozenset(['git', 'svn', 'hg', 'bzr'])
 
   @classmethod
-  def from_string(cls, requirement_string, options):
+  def from_string(cls, requirement_string, options_builder):
     if any(requirement_string.startswith('%s+' % vcs) for vcs in cls.COMPATIBLE_VCS):
       # further delegate
       pass
@@ -119,11 +120,11 @@ class ResolvablePackage(Resolvable):
 
   # TODO(wickman) Implement extras parsing for ResolvablePackage
   @classmethod
-  def from_string(cls, requirement_string, options):
+  def from_string(cls, requirement_string, options_builder):
     package = Package.from_href(requirement_string)
     if package is None:
       raise cls.InvalidRequirement('Requirement string does not appear to be a package.')
-    return cls(package, options)
+    return cls(package, options_builder.build(package.name))
 
   def __init__(self, package, options):
     self.package = package
@@ -160,12 +161,13 @@ class ResolvableRequirement(Resolvable):
   """A requirement (e.g. 'setuptools', 'Flask>=0.8,<0.9', 'pex[whl]')."""
 
   @classmethod
-  def from_string(cls, requirement_string, options):
+  def from_string(cls, requirement_string, options_builder):
     try:
-      return cls(maybe_requirement(requirement_string), options)
+      req = maybe_requirement(requirement_string)
     except ValueError:
       raise cls.InvalidRequirement('%s does not appear to be a requirement string.' %
           requirement_string)
+    return cls(req, options_builder.build(req.key))
 
   def __init__(self, requirement, options):
     self.requirement = requirement
@@ -179,9 +181,9 @@ class ResolvableRequirement(Resolvable):
     return sorter.sort(package for package in iterator.iter(self.requirement))
 
   def packages(self):
-    finder = self.options.get_finder()
+    iterator = self.options.get_iterator()
     sorter = self.options.get_sorter()
-    return sorter.sort(finder.iter(self.requirement))
+    return sorter.sort(iterator.iter(self.requirement))
 
   @property
   def name(self):
@@ -210,7 +212,7 @@ Resolvable.register(ResolvableRequirement)
 
 
 # TODO(wickman) maybe have Resolvable.from_concrete and delegate to that.
-def resolvables_from_iterable(iterable):
+def resolvables_from_iterable(iterable, builder):
   """Given an iterable of resolvable-like objects, return list of Resolvable objects.
 
   :param iterable: An iterable of :class:`Resolvable`, :class:`Requirement`, :class:`Package`,
@@ -222,11 +224,11 @@ def resolvables_from_iterable(iterable):
     if isinstance(obj, Resolvable):
       return obj
     elif isinstance(obj, Requirement):
-      return ResolvableRequirement(obj)
+      return ResolvableRequirement(obj, builder.build(obj.key))
     elif isinstance(obj, Package):
-      return ResolvablePackage(obj)
+      return ResolvablePackage(obj, builder.build(obj.name))
     elif isinstance(obj, compatibility_string):
-      return Resolvable.get(obj)
+      return Resolvable.get(obj, builder)
     else:
       raise ValueError('Do not know how to resolve %s' % type(obj))
   return list(map(translate, iterable))

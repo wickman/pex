@@ -16,10 +16,10 @@ from .translator import ChainedTranslator, EggTranslator, SourceTranslator, Whee
 
 
 class ResolverOptionsInterface(object):
-  def get_context(self, key):
+  def get_context(self):
     raise NotImplemented
 
-  def get_crawler(self, key):
+  def get_crawler(self):
     raise NotImplemented
 
   def get_sorter(self):
@@ -28,7 +28,7 @@ class ResolverOptionsInterface(object):
   def get_translator(self, interpreter, platform):
     raise NotImplemented
 
-  def get_iterator(self, key):
+  def get_iterator(self):
     raise NotImplemented
 
 
@@ -38,7 +38,7 @@ class ResolverOptionsBuilder(object):
   Used by command-line and requirements.txt processors to configure a resolver.
   """
   @classmethod
-  def from_existing(self, parent):
+  def from_existing(cls, parent):
     if not isinstance(parent, ResolverOptionsBuilder):
       raise TypeError('Cannot spawn new ResolverOptionsBuilder from %s' % type(parent))
     builder = cls()
@@ -58,6 +58,10 @@ class ResolverOptionsBuilder(object):
     self._precedence = Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = Context.get()
   
+  # Just make these constructable XXXXX
+  def set_fetchers(self, fetchers):
+    self._fetchers = fetchers[:]
+
   def add_index(self, index):
     fetcher = PyPIFetcher(index)
     if fetcher not in self._fetchers:
@@ -123,8 +127,8 @@ class ResolverOptionsBuilder(object):
         fetchers=self._fetchers,
         allow_external=self._allow_all_external or key in self._allow_external,
         allow_unverified=key in self._allow_unverified,
-        self._precedence,
-        self._context,
+        precedence=self._precedence,
+        context=self._context,
     )
 
 
@@ -135,13 +139,14 @@ class ResolverOptions(ResolverOptionsInterface):
                allow_unverified=False,
                precedence=None,
                context=None):
-    self._fetchers = fetchers or [PyPIFetcher()]
+    self._fetchers = fetchers if fetchers is not None else [PyPIFetcher()]
     self._allow_external = allow_external
     self._allow_unverified = allow_unverified
-    self._precedence = precedence or Sorter.DEFAULT_PACKAGE_PRECEDENCE
+    self._precedence = precedence if precedence is not None else Sorter.DEFAULT_PACKAGE_PRECEDENCE
     self._context = context or Context.get()  # TODO(wickman) Revisit with #58
 
   def get_context(self):
+    # XXX allow_unverified per #58
     return self._context
 
   def get_crawler(self):
@@ -172,6 +177,6 @@ class ResolverOptions(ResolverOptionsInterface):
   def get_iterator(self):
     return Iterator(
         fetchers=self._fetchers,
-        crawler=self.get_crawler(key),
+        crawler=self.get_crawler(),
         follow_links=self._allow_external,
     )

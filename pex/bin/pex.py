@@ -29,7 +29,8 @@ from pex.pex_builder import PEXBuilder
 from pex.platforms import Platform
 from pex.requirements import requirements_from_file
 from pex.resolvable import Resolvable, ResolvablePackage
-from pex.resolver import CachingResolver, Resolver, ResolverOptionsBuilder
+from pex.resolver import CachingResolver, Resolver
+from pex.resolver_options import ResolverOptionsBuilder
 from pex.tracer import TRACER, TraceLogger
 from pex.version import __setuptools_requirement, __version__, __wheel_requirement
 
@@ -281,13 +282,10 @@ def configure_clp():
 
   parser.add_option(
       '-r', '--requirement',
-      dest='resolvables',
+      dest='requirement_files',
       metavar='FILE',
       default=[],
-      action='callback',
       type=str,
-      callback=process_requirements,
-      callback_args=(resolver_options_builder,),
       help='Add requirements from the given requirements file.  This option can be used multiple '
            'times.')
 
@@ -404,6 +402,7 @@ def interpreter_from_options(options):
     return interpreter
 
 
+# XXX dhis all wrong
 def build_pex(args, options, resolver_option_builder):
   with TRACER.timed('Resolving interpreter', V=2):
     interpreter = interpreter_from_options(options)  # XXX calls fetcher_from_options
@@ -411,10 +410,7 @@ def build_pex(args, options, resolver_option_builder):
   if interpreter is None:
     die('Could not find compatible interpreter', CANNOT_SETUP_INTERPRETER)
 
-  pex_builder = PEXBuilder(
-      path=safe_mkdtemp(),
-      interpreter=interpreter,
-  )
+  pex_builder = PEXBuilder(path=safe_mkdtemp(), interpreter=interpreter)
 
   pex_info = pex_builder.info
   pex_info.zip_safe = options.zip_safe
@@ -422,8 +418,11 @@ def build_pex(args, options, resolver_option_builder):
   pex_info.ignore_errors = options.ignore_errors
   pex_info.inherit_path = options.inherit_path
 
-  resolvables = [Resolvable.get(arg) for arg in args]
+  resolvables = [Resolvable.get(arg, resolver_option_builder) for arg in args]
   resolvables.extend(options.resolvables)
+  
+  for requirements_txt in options.requirement_files:
+    resolvables.extend(requirements_from_file(requirements_txt, resolver_options_builder))
 
   if options.source_dirs:
     for source_dir in options.source_dirs:
@@ -432,14 +431,9 @@ def build_pex(args, options, resolver_option_builder):
       except InstallerBase.Error:
         die('Failed to run installer for %s' % source_dir, CANNOT_DISTILL)
 
-      resolvables.append(ResolvablePackage(Package.from_href(sdist)))
+      resolvables.append(ResolvablePackage.from_string(sdist, resolver_option_builder))
 
-  resolver_options = resolver_option_builder.build()
-  resolver_kwargs = dict(
-      interpreter=interpreter,
-      platform=options.platform,
-      options=resolver_options,
-  )
+  resolver_kwargs = dict(interpreter=interpreter, platform=options.platform)
 
   if options.cache_dir:
     resolver = CachingResolver(options.cache_dir, options.cache_ttl, **resolver_kwargs)

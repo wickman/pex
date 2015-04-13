@@ -4,7 +4,7 @@
 import os
 
 from .resolvable import Resolvable
-from .resolver import ResolverOptionsBuilder
+from .resolver_options import ResolverOptionsBuilder
 
 
 class UnsupportedLine(Exception):
@@ -24,49 +24,58 @@ def _get_parameter(line):
   return sline[1]
 
 
-# Process lines in the requirements.txt format as defined here:
-# https://pip.pypa.io/en/latest/reference/pip_install.html#requirements-file-format
-def _process_one_line(builder, line, relpath):
-  line = line.strip()
-  resolvables = []
-  if not line or line.startswith('#'):
-    return resolvables
-  elif line.startswith('-e '):
-    raise UnsupportedLine('Editable distributions not supported: %s' % line)
-  elif _startswith_any(line, ('-i ', '--index-url')):
-    builder.set_index(_get_parameter(line))
-  elif line.startswith('--extra-index-url'):
-    builder.add_index(_get_parameter(line))
-  elif _startswith_any(line, ('-f ', '--find-links')):
-    builder.add_repository(_get_parameter(line))
-  elif line.startswith('--allow-external'):
-    builder.allow_external(_get_parameter(line))
-  elif line.startswith('--allow-all-external'):
-    builder.allow_all_external()
-  elif line.startswith('--allow-unverified'):
-    builder.allow_unverified(_get_parameter(line))
-  elif line.startswith('--no-index'):
-    builder.clear_indices()
-  elif line.startswith('--no-use-wheel'):
-    builder.no_use_wheel()
-  elif _startswith_any(line, ('-r ', '--requirement')):
-    path = os.path.join(relpath, _get_parameter(line))
-    resolvables, builder = requirements_from_file(path, builder)
-  else:
-    try:
-      resolvables.append(Resolvable.get(line))
-    except Resolvable.InvalidRequirement:
-      raise UnsupportedLine('Unsupported requirements.txt option: %s' % line)
-  return resolvables
+class RequirementsTxtSentinel(object):
+  def __init__(self, filename):
+    self.filename = filename
 
 
 def requirements_from_lines(lines, builder=None, relpath=None):
   relpath = relpath or os.getcwd()
-  builder = builder or ResolverOptionsBuilder()
-  resolvables = []
+  builder = ResolverOptionsBuilder.from_existing(builder) if builder else ResolverOptionsBuilder()
+  to_resolve = []
+
   for line in lines:
-    resolvables.extend(_process_one_line(builder, line, relpath))
-  return resolvables, builder
+    line = line.strip()
+    if not line or line.startswith('#'):
+      continue
+    elif line.startswith('-e '):
+      raise UnsupportedLine('Editable distributions not supported: %s' % line)
+    elif _startswith_any(line, ('-i ', '--index-url')):
+      builder.set_index(_get_parameter(line))
+    elif line.startswith('--extra-index-url'):
+      builder.add_index(_get_parameter(line))
+    elif _startswith_any(line, ('-f ', '--find-links')):
+      builder.add_repository(_get_parameter(line))
+    elif line.startswith('--allow-external'):
+      builder.allow_external(_get_parameter(line))
+    elif line.startswith('--allow-all-external'):
+      builder.allow_all_external()
+    elif line.startswith('--allow-unverified'):
+      builder.allow_unverified(_get_parameter(line))
+    elif line.startswith('--no-index'):
+      builder.clear_indices()
+    elif line.startswith('--no-use-wheel'):
+      builder.no_use_wheel()
+    # defer the conversion of strings/files to resolvables until all options defined
+    # within the current grouping of lines has been processed.
+    elif _startswith_any(line, ('-r ', '--requirement')):
+      path = os.path.join(relpath, _get_parameter(line))
+      to_resolve.append(RequirementsTxtSentinel(path))
+    else:
+      to_resolve.append(line)
+
+  resolvables = []
+  
+  for resolvable in to_resolve:
+    if isinstance(resolvable, RequirementsTxtSentinel):
+      resolvables.extend(requirements_from_file(resolvable.filename, builder=builder))
+    else:
+      try:
+        resolvables.append(Resolvable.get(resolvable, builder))
+      except Resolvable.Error as e:
+        raise UnsupportedLine('Could not resolve line: %s (%s)' % (resolvable, e))
+
+  return resolvables
 
 
 def requirements_from_file(filename, builder=None):

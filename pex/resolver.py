@@ -20,6 +20,7 @@ from .orderedset import OrderedSet
 from .package import EggPackage, Package, SourcePackage, WheelPackage, distribution_compatible
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
+from .resolver_options import ResolverOptionsBuilder
 from .sorter import Sorter
 from .tracer import TRACER
 from .translator import ChainedTranslator, EggTranslator, SourceTranslator, WheelTranslator
@@ -55,16 +56,16 @@ class _ResolvableSet(object):
   def _collapse(self):
     resolvables = {}
     for resolvable, packages in self.__tuples:
-      resolvable, old_packages = resolvables.get(resolvable.name, (None, OrderedSet()))
-      if not resolvable:
-        resolvables[resolvable.name] = (resolvable, packages.copy())
+      first_resolvable, old_packages = resolvables.get(resolvable.name, (None, OrderedSet()))
+      if not first_resolvable:
+        resolvables[resolvable.name] = (resolvable, OrderedSet(packages))
       else:
-        resolvables[resolvable.name] = (resolvable, old_packages.intersection(packages))
+        resolvables[resolvable.name] = (first_resolvable, old_packages & packages)
     return resolvables
   
   def _check(self):
     resolvables = self._collapse()
-    for name, (resolvable, packages) in self._collapse():
+    for name, (resolvable, packages) in self._collapse().items():
       if not packages:
         raise self.Unsatisfiable('Could not satisfy all requirements for %s' % resolvable)
 
@@ -136,18 +137,20 @@ class Resolver(object):
         resolvable_set.merge(resolvable, packages)
         processed_resolvables.add(resolvable)
 
-      for resolvable, package in resolvable_set.packages().items():
+      for resolvable, packages in resolvable_set.packages():
+        assert len(packages) > 0
+        package = next(iter(packages))
         if resolvable.name in processed_packages:
           # TODO implement backtracking?
           if package != processed_packages[resolvable.name]:
             raise self.Error('Ambiguous resolvable: %s' % resolvable)
           continue
         if package not in distributions:
-          distributions[package] = self.build(package, resolvable.options())
+          distributions[package] = self.build(package, resolvable.options)
         distribution = distributions[package]
-        processed_packages[resolvable_name] = package
+        processed_packages[resolvable.name] = package
         resolvables.extend(ResolvableRequirement(req) for req in
-            distribution.requires(extras=resolvable_set.extras(resolvable_name)))
+            distribution.requires(extras=resolvable_set.extras(resolvable.name)))
 
     return list(distributions.values())
 
@@ -267,21 +270,20 @@ def resolve(
     classes.
   """
 
-  options = ResolverOptions(
-      fetchers=fetchers,
-      precedence=precedence,
-      context=context,
-  )
-
-  keywords = dict(
-      interpreter=interpreter,
-      platform=platform,
-      options=options,
-  )
-
+  builder = ResolverOptionsBuilder()
+  
+  if fetchers is not None:
+    builder.set_fetchers(fetchers)
+  
+  if precedence is not None:
+    builder.set_precedence(precedence)
+  
+  if context:
+    builder.set_context(context)
+  
   if cache:
-    resolver = CachingResolver(cache, cache_ttl, **keywords)
+    resolver = CachingResolver(cache, cache_ttl, interpreter=interpreter, platform=platform)
   else:
-    resolver = Resolver(**keywords)
+    resolver = Resolver(interpreter=interpreter, platform=platform)
 
-  return resolver.resolve(resolvables_from_iterable(requirements))
+  return resolver.resolve(resolvables_from_iterable(requirements, builder))

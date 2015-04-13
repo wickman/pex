@@ -10,13 +10,14 @@ from twitter.common.contextutil import temporary_dir
 
 from pex.requirements import requirements_from_file, requirements_from_lines
 from pex.resolvable import ResolvableRequirement
+from pex.resolver_options import ResolverOptionsBuilder
 
 
 def test_from_empty_lines():
-  reqs, _ = requirements_from_lines([])
+  reqs = requirements_from_lines([])
   assert len(reqs) == 0
 
-  reqs, _ = requirements_from_lines(dedent("""
+  reqs = requirements_from_lines(dedent("""
   # comment
   """).splitlines())
   assert len(reqs) == 0
@@ -24,7 +25,7 @@ def test_from_empty_lines():
 
 @pytest.mark.parametrize('flag_separator', (' ', '='))
 def test_line_types(flag_separator):
-  reqs, builder = requirements_from_lines(dedent("""
+  reqs = requirements_from_lines(dedent("""
   simple_requirement
   specific_requirement==2
   --allow-external%sspecific_requirement
@@ -32,46 +33,50 @@ def test_line_types(flag_separator):
 
   # simple_requirement
   assert len(reqs) == 2
-
   assert isinstance(reqs[0], ResolvableRequirement)
   assert reqs[0].requirement == Requirement.parse('simple_requirement')
+  assert not reqs[0].options._allow_external
 
   # specific_requirement
   assert isinstance(reqs[1], ResolvableRequirement)
   assert reqs[1].requirement == Requirement.parse('specific_requirement==2')
-  assert safe_name('specific_requirement') in builder._allow_external
+  assert reqs[1].options._allow_external
 
 
 def test_all_external():
-  reqs, builder = requirements_from_lines(dedent("""
+  reqs = requirements_from_lines(dedent("""
   simple_requirement
   specific_requirement==2
   --allow-all-external
   """).splitlines())
-  assert builder._allow_all_external
+  assert reqs[0].options._allow_external
+  assert reqs[1].options._allow_external
 
 
 def test_index_types():
-  reqs, builder = requirements_from_lines(dedent("""
+  reqs = requirements_from_lines(dedent("""
+  simple_requirement
   --no-index
   """).splitlines())
-  assert builder._fetchers == []
+  assert reqs[0].options._fetchers == []
 
   for prefix in ('-f ', '--find-links ', '--find-links='):
-    reqs, builder = requirements_from_lines(dedent("""
+    reqs = requirements_from_lines(dedent("""
+    foo
     --no-index
     %shttps://example.com/repo
     """ % prefix).splitlines())
-    assert len(builder._fetchers) == 1
-    assert builder._fetchers[0].urls('foo') == ['https://example.com/repo']
+    assert len(reqs[0].options._fetchers) == 1
+    assert reqs[0].options._fetchers[0].urls('foo') == ['https://example.com/repo']
 
   for prefix in ('-i ', '--index-url ', '--index-url=', '--extra-index-url ', '--extra-index-url='):
-    reqs, builder = requirements_from_lines(dedent("""
+    reqs = requirements_from_lines(dedent("""
+    foo
     --no-index
     %shttps://example.com/repo/
     """ % prefix).splitlines())
-    assert len(builder._fetchers) == 1, 'Prefix is: %r' % prefix
-    assert builder._fetchers[0].urls('foo') == ['https://example.com/repo/foo/']
+    assert len(reqs[0].options._fetchers) == 1, 'Prefix is: %r' % prefix
+    assert reqs[0].options._fetchers[0].urls('foo') == ['https://example.com/repo/foo/']
 
 
 def test_nested_requirements():
@@ -102,7 +107,7 @@ def test_nested_requirements():
         '''))
 
       def rr(req):
-        return ResolvableRequirement(Requirement.parse(req))
+        return ResolvableRequirement.from_string(req, ResolverOptionsBuilder())
 
-      reqs, builder = requirements_from_file(os.path.join(td1, 'requirements.txt'))
+      reqs = requirements_from_file(os.path.join(td1, 'requirements.txt'))
       assert reqs == [rr('requirement%d' % k) for k in (1, 2, 3, 4, 5, 6)]

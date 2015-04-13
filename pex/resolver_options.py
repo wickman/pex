@@ -120,14 +120,14 @@ class ResolverOptionsBuilder(object):
     if key is not None:
       allow_options.update(
           allow_external=self._allow_all_external or key in self._allow_external,
-          allow_unverified=key in self._allow_unverified
+          allow_unverified=key in self._allow_unverified,
       )
 
     return ResolverOptions(
         fetchers=self._fetchers,
         precedence=self._precedence,
         context=self._context,
-        **allow_options,
+        **allow_options
     )
 
 

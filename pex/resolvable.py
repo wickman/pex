@@ -1,16 +1,18 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
+import os
+import re
 from abc import abstractmethod, abstractproperty
 
-from pkg_resources import Requirement
+from pkg_resources import Requirement, safe_extra
 
 from .base import maybe_requirement, requirement_is_exact
 from .compatibility import string as compatibility_string
 from .compatibility import AbstractClass
+from .installer import InstallerBase, Packager
 from .package import Package
 from .resolver_options import ResolverOptionsBuilder
-
 
 _EXTRAS_PATTERN = re.compile(r'(?P<main>.*)\[(?P<extras>.*)\]$')
 

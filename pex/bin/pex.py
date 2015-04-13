@@ -419,7 +419,6 @@ def build_pex(args, options, resolver_option_builder):
   pex_info.inherit_path = options.inherit_path
 
   resolvables = [Resolvable.get(arg, resolver_option_builder) for arg in args]
-  resolvables.extend(options.resolvables)
   
   for requirements_txt in options.requirement_files:
     resolvables.extend(requirements_from_file(requirements_txt, resolver_options_builder))

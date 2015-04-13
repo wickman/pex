@@ -103,7 +103,7 @@ class Resolver(object):
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
-      existing = resolvable.packages(StaticIterator(existing))
+      existing = resolvable.compatible(StaticIterator(existing))
     else:
       existing = resolvable.packages()
     return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
@@ -149,7 +149,8 @@ class Resolver(object):
           distributions[package] = self.build(package, resolvable.options)
         distribution = distributions[package]
         processed_packages[resolvable.name] = package
-        resolvables.extend(ResolvableRequirement(req) for req in
+        resolvables.extend(
+            ResolvableRequirement(req, resolvable.options) for req in
             distribution.requires(extras=resolvable_set.extras(resolvable.name)))
 
     return list(distributions.values())

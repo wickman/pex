@@ -7,6 +7,7 @@ import os
 import shutil
 import time
 
+from .common import safe_mkdir
 from .fetcher import Fetcher
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
@@ -170,6 +171,7 @@ class CachingResolver(Resolver):
   def __init__(self, cache, cache_ttl, *args, **kw):
     self.__cache = cache
     self.__cache_ttl = cache_ttl
+    safe_mkdir(self.__cache)
     super(CachingResolver, self).__init__(*args, **kw)
 
   # Short-circuiting package iterator.

@@ -103,12 +103,6 @@ def process_precedence(option, option_str, option_value, parser, builder):
     raise OptionValueError
 
 
-def process_requirements(option, option_str, option_value, parser, builder):
-  resolvables = getattr(parser.values, option.dest)
-  new_resolvables, _ = requirements_from_file(option_value, builder=builder)
-  resolvables.extend(new_resolvables)
-
-
 def configure_clp_pex_resolution(parser, builder):
   group = OptionGroup(
       parser,
@@ -286,6 +280,7 @@ def configure_clp():
       metavar='FILE',
       default=[],
       type=str,
+      action='append',
       help='Add requirements from the given requirements file.  This option can be used multiple '
            'times.')
 

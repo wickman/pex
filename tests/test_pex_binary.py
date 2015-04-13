@@ -1,7 +1,7 @@
 from contextlib import contextmanager
 from optparse import OptionParser
 
-from pex.bin.pex import configure_clp_pex_resolution
+from pex.bin.pex import configure_clp, configure_clp_pex_resolution
 from pex.fetcher import PyPIFetcher
 from pex.package import SourcePackage, WheelPackage
 from pex.resolver_options import ResolverOptionsBuilder
@@ -70,3 +70,10 @@ def test_clp_build_precedence():
     options, _ = parser.parse_args(args=['--wheel'])
     assert WheelPackage in builder._precedence
     assert options.use_wheel
+
+
+# Make sure that we're doing append and not replace
+def test_clp_requirements_txt():
+  parser, builder = configure_clp()
+  options, _ = parser.parse_args(args='-r requirements1.txt -r requirements2.txt'.split())
+  assert options.requirement_files == ['requirements1.txt', 'requirements2.txt']

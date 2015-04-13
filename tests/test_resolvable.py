@@ -55,11 +55,12 @@ def test_resolvable_repository():
 
 def test_resolvable_requirement():
   req = 'foo[bar]==2.3.4'
-  resolvable = ResolvableRequirement.from_string(req, ResolverOptionsBuilder())
+  resolvable = ResolvableRequirement.from_string(req, ResolverOptionsBuilder(fetchers=[]))
   assert resolvable.requirement == pkg_resources.Requirement.parse('foo[bar]==2.3.4')
   assert resolvable.name == 'foo'
   assert resolvable.exact is True
   assert resolvable.extras() == ['bar']
+  assert resolvable.options._fetchers == []
   assert resolvable.packages() == []
 
   source_pkg = SourcePackage.from_href('foo-2.3.4.tar.gz')

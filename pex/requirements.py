@@ -29,6 +29,8 @@ class RequirementsTxtSentinel(object):
     self.filename = filename
 
 
+# Process lines in the requirements.txt format as defined here:
+# https://pip.pypa.io/en/latest/reference/pip_install.html#requirements-file-format
 def requirements_from_lines(lines, builder=None, relpath=None):
   relpath = relpath or os.getcwd()
   builder = builder.clone() if builder else ResolverOptionsBuilder()

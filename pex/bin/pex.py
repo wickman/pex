@@ -285,15 +285,6 @@ def configure_clp():
            'times.')
 
   parser.add_option(
-      '-s', '--source-dir',
-      dest='source_dirs',
-      metavar='DIR',
-      default=[],
-      action='append',
-      help='Source to be packaged; This <DIR> should be a pip-installable project '
-           'with a setup.py.')
-
-  parser.add_option(
       '-v',
       dest='verbosity',
       default=0,
@@ -415,15 +406,6 @@ def build_pex(args, options, resolver_option_builder):
 
   for requirements_txt in options.requirement_files:
     resolvables.extend(requirements_from_file(requirements_txt, resolver_option_builder))
-
-  if options.source_dirs:
-    for source_dir in options.source_dirs:
-      try:
-        sdist = Packager(source_dir, interpreter=interpreter).sdist()
-      except InstallerBase.Error:
-        die('Failed to run installer for %s' % source_dir, CANNOT_DISTILL)
-
-      resolvables.append(ResolvablePackage.from_string(sdist, resolver_option_builder))
 
   resolver_kwargs = dict(interpreter=interpreter, platform=options.platform)
 

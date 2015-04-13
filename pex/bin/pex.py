@@ -227,9 +227,15 @@ def configure_clp_pex_environment(parser):
       '--python',
       dest='python',
       default=None,
-      help='The Python interpreter to use to build the pex.  Either specify an explicit '
-           'path to an interpreter, or specify a binary accessible on $PATH. '
-           'Default: Use current interpreter.')
+      help='The Python interpreter to use to build the PEX file.  This overrides the shebang '
+           'line of the pex file to be this string explicitly.')
+  
+  group.add_option(
+      '--interpreter',
+      dest='interpreter',
+      default=None,
+      help='The Python interpreter requirement for this PEX file, such as "CPython>=2.7.9,<3" or '
+           '"PyPy".  This causes a generic shebang line to be added to the PEX file.')
 
   group.add_option(
       '--platform',

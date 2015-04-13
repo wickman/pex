@@ -90,7 +90,7 @@ def test_nested_requirements():
             -r %s
         ''' % (
             os.path.join(td2, 'requirements_nonrelative.txt'),
-            os.path.join(td1, 'relative', 'requirements_relative.txt'))
+            os.path.join('relative', 'requirements_relative.txt'))
         ))
 
       with open(os.path.join(td2, 'requirements_nonrelative.txt'), 'w') as fp:

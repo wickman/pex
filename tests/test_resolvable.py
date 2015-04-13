@@ -56,7 +56,7 @@ def test_resolvable_requirement():
   resolvable = ResolvableRequirement.from_string(req, ResolverOptionsBuilder())
   assert resolvable.requirement == pkg_resources.Requirement.parse('foo[bar]==2.3.4')
   assert resolvable.name == 'foo'
-  assert resolvable.exact is True  # TODO(wickman) test inexact
+  assert resolvable.exact is True
   assert resolvable.extras() == ['bar']
   assert resolvable.packages() == []
 

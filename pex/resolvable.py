@@ -9,7 +9,7 @@ from .base import maybe_requirement, requirement_is_exact
 from .compatibility import string as compatibility_string
 from .compatibility import AbstractClass
 from .package import Package
-from .resolver_options import ResolverOptionsBuilder
+from .resolver_options import ResolverOptionsBuilder, ResolverOptionsInterface
 
 
 class Resolvable(AbstractClass):
@@ -22,6 +22,11 @@ class Resolvable(AbstractClass):
 
   @classmethod
   def register(cls, implementation):
+    """Register an implementation of a Resolvable.
+
+    :param implementation: The resolvable implementation.
+    :type implementation: :class:`Resolvable`
+    """
     cls._REGISTRY.append(implementation)
 
   @classmethod
@@ -50,7 +55,15 @@ class Resolvable(AbstractClass):
     raise cls.InvalidRequirement('Resolvable is abstract.')
 
   def __init__(self, options):
-    self.options = options
+    if not isinstance(options, ResolverOptionsInterface):
+      raise TypeError('Resolvable must be initialized with a ResolverOptionsInterface, got %s' % (
+          type(options)))
+    self._options = options
+
+  @property
+  def options(self):
+    """The ResolverOptions for this Resolvable."""
+    return self._options
 
   @abstractmethod
   def compatible(self, iterator):

@@ -83,7 +83,7 @@ class SourceTranslator(TranslatorBase):
     if not isinstance(package, SourcePackage):
       return None
     if not package.local:
-      raise ValueError('BinaryTranslator cannot translate remote packages.')
+      raise ValueError('SourceTranslator cannot translate remote packages.')
 
     installer = None
     version = self._interpreter.version

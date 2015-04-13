@@ -12,11 +12,25 @@ from .package import Package
 from .resolver_options import ResolverOptionsBuilder
 
 
+_EXTRAS_PATTERN = re.compile(r'(?P<main>.*)\[(?P<extras>.*)\]$')
+
+
+def strip_extras(resolvable_string):
+  match = _EXTRAS_PATTERN.match(resolvable_string)
+  if match:
+    resolvable_string, extras = match.groupdict()['main'], match.groupdict()['extras']
+    extras = [safe_extra(extra.strip()) for extra in extras.split(',')]
+  else:
+    extras = []
+  return resolvable_string, extras
+
+
 class Resolvable(AbstractClass):
   """An entity that can be resolved into a package."""
 
   class Error(Exception): pass
   class InvalidRequirement(Error): pass
+  class ResolverFailure(Error): pass
 
   _REGISTRY = []
 
@@ -123,13 +137,15 @@ class ResolvablePackage(Resolvable):
   # TODO(wickman) Implement extras parsing for ResolvablePackage
   @classmethod
   def from_string(cls, requirement_string, options_builder):
+    requirement_string, extras = strip_extras(requirement_string)
     package = Package.from_href(requirement_string)
     if package is None:
       raise cls.InvalidRequirement('Requirement string does not appear to be a package.')
-    return cls(package, options_builder.build(package.name))
+    return cls(package, options_builder.build(package.name), extras=extras)
 
-  def __init__(self, package, options):
+  def __init__(self, package, options, extras=None):
     self.package = package
+    self._extras = extras
     super(ResolvablePackage, self).__init__(options)
 
   def compatible(self, iterator):
@@ -146,9 +162,8 @@ class ResolvablePackage(Resolvable):
   def exact(self):
     return True
 
-  # TODO(wickman) Implement extras parsing for ResolvablePackages
   def extras(self, interpreter=None):
-    return []
+    return self._extras
 
   def __eq__(self, other):
     return isinstance(other, ResolvablePackage) and self.package == other.package
@@ -206,6 +221,58 @@ class ResolvableRequirement(Resolvable):
     return str(self.requirement)
 
 
+class ResolvableDirectory(Resolvable):
+  """A source directory (with setup.py) resolvable."""
+
+  @classmethod
+  def is_installable(cls, requirement_string):
+    if not os.path.isdir(requirement_string):
+      return False
+    return os.path.isfile(os.path.join(requirement_string, 'setup.py'))
+
+  @classmethod
+  def from_string(cls, requirement_string, options_builder):
+    requirement_string, extras = strip_extras(requirement_string)
+    if cls.is_installable(requirement_string):
+      return cls(requirement_string, options_builder.build(), extras=extras)
+    else:
+      raise cls.InvalidRequirement('%s does not appear to be an installable directory.'
+          % requirement_string)
+
+  def __init__(self, directory, options, extras=None):
+    self._directory = directory
+    self._extras = extras or []
+    super(ResolvableDirectory, self).__init__(options)
+
+  def compatible(self, iterable):
+    return []
+
+  def packages(self):
+    try:
+      # TODO(wickman) This is one case where interpreter is necessary to be fully correct.  This
+      # may indicate that packages() should take interpreter like extras does.  Once we have
+      # metadata in setup.cfg or whatever, then we can get the interpreter out of the equation.
+      sdist = Packager(self._directory).sdist()
+    except InstallerBase.Error:
+      raise self.ResolverFailure('Could not create source distribution for %s' % self._directory)
+    return ResolvablePackage(Package.from_href(sdist), self.options).packages()
+
+  @property
+  def name(self):
+    return self._package.name
+
+  @property
+  def exact(self):
+    return True
+
+  def extras(self, interpreter=None):
+    return self._extras
+
+  def __str__(self):
+    return str(self._package)
+
+
+Resolvable.register(ResolvableDirectory)
 Resolvable.register(ResolvableRepository)
 Resolvable.register(ResolvablePackage)
 Resolvable.register(ResolvableRequirement)

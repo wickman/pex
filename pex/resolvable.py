@@ -223,7 +223,7 @@ class ResolvableRequirement(Resolvable):
     return str(self.requirement)
 
 
-class ResolvableDirectory(Resolvable):
+class ResolvableDirectory(ResolvablePackage):
   """A source directory (with setup.py) resolvable."""
 
   @classmethod
@@ -236,42 +236,18 @@ class ResolvableDirectory(Resolvable):
   def from_string(cls, requirement_string, options_builder):
     requirement_string, extras = strip_extras(requirement_string)
     if cls.is_installable(requirement_string):
-      return cls(requirement_string, options_builder.build(), extras=extras)
+      try:
+        # TODO(wickman) This is one case where interpreter is necessary to be fully correct.  This
+        # may indicate that packages() should take interpreter like extras does.  Once we have
+        # metadata in setup.cfg or whatever, then we can get the interpreter out of the equation.
+        sdist = Packager(requirement_string).sdist()
+      except InstallerBase.Error:
+        raise self.InvalidRequirement('Could not create source distribution for %s' %
+            requirement_string)
+      return ResolvablePackage(Package.from_href(sdist), options_builder.build(), extras=extras)
     else:
       raise cls.InvalidRequirement('%s does not appear to be an installable directory.'
           % requirement_string)
-
-  def __init__(self, directory, options, extras=None):
-    self._directory = directory
-    self._extras = extras or []
-    super(ResolvableDirectory, self).__init__(options)
-
-  def compatible(self, iterable):
-    return []
-
-  def packages(self):
-    try:
-      # TODO(wickman) This is one case where interpreter is necessary to be fully correct.  This
-      # may indicate that packages() should take interpreter like extras does.  Once we have
-      # metadata in setup.cfg or whatever, then we can get the interpreter out of the equation.
-      sdist = Packager(self._directory).sdist()
-    except InstallerBase.Error:
-      raise self.ResolverFailure('Could not create source distribution for %s' % self._directory)
-    return ResolvablePackage(Package.from_href(sdist), self.options).packages()
-
-  @property
-  def name(self):
-    return self._package.name
-
-  @property
-  def exact(self):
-    return True
-
-  def extras(self, interpreter=None):
-    return self._extras
-
-  def __str__(self):
-    return str(self._package)
 
 
 Resolvable.register(ResolvableDirectory)

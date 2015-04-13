@@ -51,9 +51,6 @@ def _process_one_line(builder, line, relpath):
     builder.no_use_wheel()
   elif _startswith_any(line, ('-r ', '--requirement')):
     path = os.path.join(relpath, _get_parameter(line))
-    # TODO(wickman) Consider creating a new scope so that -i and other options
-    # in downstream requirements.txts do not override global scope, or at least warn
-    # if overriding scope in a nested requirement.
     resolvables, builder = requirements_from_file(path, builder)
   else:
     try:

@@ -38,7 +38,7 @@ class Resolvable(AbstractClass):
 
   # @abstractmethod - Only available in Python 3.3+
   @classmethod
-  def from_string(cls, requirement_string):
+  def from_string(cls, requirement_string, options):
     """Produce a resolvable from this requirement string.
 
     :returns: Instance of the particular Resolvable implementation.
@@ -47,8 +47,15 @@ class Resolvable(AbstractClass):
     """
     raise cls.InvalidRequirement('Resolvable is abstract.')
 
+  def __init__(self, options):
+    self.options = options
+
   @abstractmethod
-  def packages(self, finder):
+  def compatible(self, iterator):
+    """XXX"""
+
+  @abstractmethod
+  def packages(self):
     """Given a finder of type :class:`Iterable` (possibly ignored), resolve packages.
 
     :returns: An iterable of compatible :class:`Package` objects.
@@ -56,11 +63,13 @@ class Resolvable(AbstractClass):
 
   @abstractproperty
   def name(self):
-    pass
+    """The distribution key associated with this resolvable, i.e. the name of the packages
+       this resolvable will produce."""
 
+  # TODO(wickman) Call this cacheable?
   @abstractproperty
   def exact(self):
-    pass
+    """Whether or not this resolvable specifies an exact (cacheable) requirement."""
 
   # TODO(wickman) Currently 'interpreter' is unused but it is reserved for environment
   # marker evaluation per PEP426 and:
@@ -76,15 +85,21 @@ class ResolvableRepository(Resolvable):
   COMPATIBLE_VCS = frozenset(['git', 'svn', 'hg', 'bzr'])
 
   @classmethod
-  def from_string(cls, requirement_string):
+  def from_string(cls, requirement_string, options):
     if any(requirement_string.startswith('%s+' % vcs) for vcs in cls.COMPATIBLE_VCS):
       # further delegate
       pass
 
     # TODO(wickman) Implement.
     raise cls.InvalidRequirement('Versioning system URLs not supported.')
+  
+  def __init__(self, options):
+    super(ResolvableRepository, self).__init__(options)
 
-  def packages(self, finder):
+  def compatible(self, iterator):
+    return []
+
+  def packages(self):
     return []
 
   @property
@@ -104,16 +119,20 @@ class ResolvablePackage(Resolvable):
 
   # TODO(wickman) Implement extras parsing for ResolvablePackage
   @classmethod
-  def from_string(cls, requirement_string):
+  def from_string(cls, requirement_string, options):
     package = Package.from_href(requirement_string)
     if package is None:
       raise cls.InvalidRequirement('Requirement string does not appear to be a package.')
-    return cls(package)
+    return cls(package, options)
 
-  def __init__(self, package):
+  def __init__(self, package, options):
     self.package = package
+    super(ResolvablePackage, self).__init__(options)
 
-  def packages(self, finder):
+  def compatible(self, iterator):
+    return []
+
+  def packages(self):
     return [self.package]
 
   @property
@@ -126,7 +145,7 @@ class ResolvablePackage(Resolvable):
 
   def extras(self, interpreter=None):
     return []
-
+  
   def __eq__(self, other):
     return isinstance(other, ResolvablePackage) and self.package == other.package
 
@@ -141,21 +160,28 @@ class ResolvableRequirement(Resolvable):
   """A requirement (e.g. 'setuptools', 'Flask>=0.8,<0.9', 'pex[whl]')."""
 
   @classmethod
-  def from_string(cls, requirement_string):
+  def from_string(cls, requirement_string, options):
     try:
-      return cls(maybe_requirement(requirement_string))
+      return cls(maybe_requirement(requirement_string), options)
     except ValueError:
       raise cls.InvalidRequirement('%s does not appear to be a requirement string.' %
           requirement_string)
 
-  def __init__(self, requirement):
+  def __init__(self, requirement, options):
     self.requirement = requirement
+    super(ResolvableRequirement, self).__init__(options)
 
   def __eq__(self, other):
     return isinstance(other, ResolvableRequirement) and self.requirement == other.requirement
 
-  def packages(self, finder):
-    return list(finder.iter(self.requirement))
+  def compatible(self, iterator):
+    sorter = self.options.get_sorter()
+    return sorter.sort(package for package in iterator.iter(self.requirement))
+
+  def packages(self):
+    finder = self.options.get_finder()
+    sorter = self.options.get_sorter()
+    return sorter.sort(finder.iter(self.requirement))
 
   @property
   def name(self):
@@ -167,7 +193,7 @@ class ResolvableRequirement(Resolvable):
 
   def extras(self, interpreter=None):
     return list(self.requirement.extras)
-
+  
   def __eq__(self, other):
     return isinstance(other, ResolvableRequirement) and self.requirement == other.requirement
 

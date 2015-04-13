@@ -16,6 +16,7 @@ from .http import Context
 from .installer import EggInstaller, WheelInstaller
 from .interpreter import PythonInterpreter
 from .iterator import Iterator, IteratorInterface
+from .orderedset import OrderedSet
 from .package import EggPackage, Package, SourcePackage, WheelPackage, distribution_compatible
 from .platforms import Platform
 from .resolvable import ResolvableRequirement, resolvables_from_iterable
@@ -49,164 +50,40 @@ class _ResolvableSet(object):
   class Unsatisfiable(Error): pass
 
   def __init__(self):
-    self.__resolvables = defaultdict(set)
-    self.__packages = defaultdict(set)
+    self.__tuples = []
+  
+  def _collapse(self):
+    resolvables = {}
+    for resolvable, packages in self.__tuples:
+      resolvable, old_packages = resolvables.get(resolvable.name, (None, OrderedSet()))
+      if not resolvable:
+        resolvables[resolvable.name] = (resolvable, packages.copy())
+      else:
+        resolvables[resolvable.name] = (resolvable, old_packages.intersection(packages))
+    return resolvables
+  
+  def _check(self):
+    resolvables = self._collapse()
+    for name, (resolvable, packages) in self._collapse():
+      if not packages:
+        raise self.Unsatisfiable('Could not satisfy all requirements for %s' % resolvable)
 
   def merge(self, resolvable, packages):
     """Add a resolvable and its resolved packages."""
-    self.__resolvables[resolvable.name].add(resolvable)
-    if self.__packages[resolvable.name]:
-      self.__packages[resolvable.name] = (
-          set(packages).intersection(self.__packages[resolvable.name]))
-    else:
-      self.__packages[resolvable.name] = set(packages)
-    if not self.__packages[resolvable.name]:
-      raise self.Unsatisfiable('Could not satisfy all requirements:\n%s' % '\n'.join(
-          map(str, self.__resolvables[resolvable.name])))
+    self.__tuples.append((resolvable, OrderedSet(packages)))
+    self._check()
 
   def get(self, name):
-    return self.__packages.get(name, set()).copy()
+     resolvable, packages = self._collapse().get(name, (None, OrderedSet()))
+     return packages
 
   def packages(self):
     """Return a snapshot of packages in the resolvable set."""
-    return dict(self.__packages.copy())
+    return list(self._collapse().values())
 
   def extras(self, name):
-    return set.union(*[set(resolvable.extras()) for resolvable in self.__resolvables[name]])
-
-
-class ResolverOptionsBuilder(object):
-  """A helper that processes options into a ResolverOptions object.
-
-  Used by command-line and requirements.txt processors to configure a resolver.
-  """
-
-  def __init__(self):
-    self._fetchers = [PyPIFetcher()]
-    self._allow_all_external = False
-    self._allow_external = set()
-    self._allow_unverified = set()
-    self._precedence = Sorter.DEFAULT_PACKAGE_PRECEDENCE
-    self._context = Context.get()
-
-  def add_index(self, index):
-    fetcher = PyPIFetcher(index)
-    if fetcher not in self._fetchers:
-      self._fetchers.append(fetcher)
-    return self
-
-  def set_index(self, index):
-    self._fetchers = [PyPIFetcher(index)]
-    return self
-
-  def add_repository(self, repo):
-    fetcher = Fetcher([repo])
-    if fetcher not in self._fetchers:
-      self._fetchers.append(fetcher)
-    return self
-
-  def clear_indices(self):
-    self._fetchers = [fetcher for fetcher in self._fetchers if not isinstance(fetcher, PyPIFetcher)]
-    return self
-
-  def allow_all_external(self):
-    self._allow_all_external = True
-    return self
-
-  def allow_external(self, key):
-    self._allow_external.add(safe_name(key).lower())
-    return self
-
-  def allow_unverified(self, key):
-    self._allow_unverified.add(safe_name(key).lower())
-    return self
-
-  def use_wheel(self):
-    if WheelPackage not in self._precedence:
-      self._precedence = (WheelPackage,) + self._precedence
-    return self
-
-  def no_use_wheel(self):
-    self._precedence = tuple(
-        [precedent for precedent in self._precedence if precedent is not WheelPackage])
-    return self
-
-  def allow_builds(self):
-    if SourcePackage not in self._precedence:
-      self._precedence = self._precedence + (SourcePackage,)
-    return self
-
-  def no_allow_builds(self):
-    self._precedence = tuple(
-        [precedent for precedent in self._precedence if precedent is not SourcePackage])
-    return self
-
-  def set_context(self, context):
-    self._context = context
-    return self
-
-  def set_precedence(self, precedence):
-    self._precedence = precedence
-    return self
-
-  def build(self):
-    return ResolverOptions(
-        self._fetchers,
-        self._allow_all_external,
-        self._allow_external,
-        self._allow_unverified,
-        self._precedence,
-        self._context,
-    )
-
-
-class ResolverOptions(object):
-  def __init__(self,
-               fetchers=None,
-               allow_all_external=False,
-               allow_external=frozenset(),
-               allow_unverified=frozenset(),
-               precedence=None,
-               context=None):
-    self._fetchers = fetchers or [PyPIFetcher()]
-    self._allow_all_external = allow_all_external
-    self._allow_external = allow_external
-    self._allow_unverified = allow_unverified
-    self._precedence = precedence or Sorter.DEFAULT_PACKAGE_PRECEDENCE
-    self._context = context or Context.get()  # TODO(wickman) Revisit with #58
-
-  def get_context(self, key):
-    return self._context
-
-  def get_crawler(self, key):
-    return Crawler(self.get_context(key))
-
-  def get_sorter(self):
-    return Sorter(self._precedence)
-
-  def get_translator(self, interpreter, platform):
-    translators = []
-
-    # TODO(wickman) This is not ideal -- consider an explicit link between a Package
-    # and its Installer type rather than mapping this here, precluding the ability to
-    # easily add new package types (or we just forego that forever.)
-    for package in self._precedence:
-      if package is WheelPackage:
-        translators.append(WheelTranslator(interpreter=interpreter, platform=platform))
-      elif package is EggPackage:
-        translators.append(EggTranslator(interpreter=interpreter, platform=platform))
-      elif package is SourcePackage:
-        installer_impl = WheelInstaller if WheelPackage in self._precedence else EggInstaller
-        translators.append(SourceTranslator(installer_impl=installer_impl, interpreter=interpreter))
-
-    return ChainedTranslator(*translators)
-
-  def get_iterator(self, key):
-    return Iterator(
-        fetchers=self._fetchers,
-        crawler=self.get_crawler(key),
-        follow_links=self._allow_all_external or key in self._allow_external,
-    )
+    return set.union(
+        *[set(resolvable.extras()) for resolvable, _ in self.__tuples if resolvable.name == name])
 
 
 class Resolver(object):
@@ -219,22 +96,20 @@ class Resolver(object):
     return [package for package in packages
         if package.compatible(interpreter.identity, platform)]
 
-  def __init__(self, interpreter=None, platform=None, options=None):
+  def __init__(self, interpreter=None, platform=None):
     self._interpreter = interpreter or PythonInterpreter.get()
     self._platform = platform or Platform.current()
-    self._options = options or ResolverOptions()
 
   def package_iterator(self, resolvable, existing=None):
     if existing:
-      iterator = StaticIterator(existing)
+      existing = resolvable.packages(StaticIterator(existing))
     else:
-      iterator = self._options.get_iterator(resolvable.name)
-    existing = resolvable.packages(iterator)
+      existing = resolvable.packages()
     return self.filter_packages_by_interpreter(existing, self._interpreter, self._platform)
 
-  def build(self, package):
-    context = self._options.get_context(package.name)
-    translator = self._options.get_translator(self._interpreter, self._platform)
+  def build(self, package, options):
+    context = options.get_context()
+    translator = options.get_translator(self._interpreter, self._platform)
     with TRACER.timed('Fetching %s' % package.url, V=2):
       local_package = Package.from_href(context.fetch(package))
     with TRACER.timed('Translating %s into distribution' % local_package.path, V=2):
@@ -251,7 +126,6 @@ class Resolver(object):
     processed_resolvables = set()
     processed_packages = {}
     distributions = {}
-    sorter = self._options.get_sorter()
 
     while resolvables:
       while resolvables:
@@ -262,17 +136,14 @@ class Resolver(object):
         resolvable_set.merge(resolvable, packages)
         processed_resolvables.add(resolvable)
 
-      packages = dict(
-          (name, sorter.sort(packages)[0])
-          for (name, packages) in resolvable_set.packages().items())
-
-      for resolvable_name, package in packages.items():
-        if resolvable_name in processed_packages:
-          if package != processed_packages[resolvable_name]:
-            raise self.Error('Ambiguous resolvable: %s' % resolvable_name)
+      for resolvable, package in resolvable_set.packages().items():
+        if resolvable.name in processed_packages:
+          # TODO implement backtracking?
+          if package != processed_packages[resolvable.name]:
+            raise self.Error('Ambiguous resolvable: %s' % resolvable)
           continue
         if package not in distributions:
-          distributions[package] = self.build(package)
+          distributions[package] = self.build(package, resolvable.options())
         distribution = distributions[package]
         processed_packages[resolvable_name] = package
         resolvables.extend(ResolvableRequirement(req) for req in
@@ -297,9 +168,8 @@ class CachingResolver(Resolver):
 
   # Short-circuiting package iterator.
   def package_iterator(self, resolvable, existing=None):
-    sorter = self._options.get_sorter()
     iterator = Iterator(fetchers=[Fetcher([self.__cache])])
-    packages = sorter.sort(resolvable.packages(iterator))
+    packages = resolvable.compatible(iterator)
 
     if packages:
       if resolvable.exact:
@@ -313,14 +183,15 @@ class CachingResolver(Resolver):
     return super(CachingResolver, self).package_iterator(resolvable, existing=existing)
 
   # Caching sandwich.
-  def build(self, package):
+  def build(self, package, options):
     # cache package locally
     if package.remote:
-      package = Package.from_href(
-          self._options.get_context(package.name).fetch(package, into=self.__cache))
+      package = Package.from_href(options.get_context().fetch(package, into=self.__cache))
       os.utime(package.path, None)
+
     # build into distribution
-    dist = super(CachingResolver, self).build(package)
+    dist = super(CachingResolver, self).build(package, options)
+
     # if distribution is not in cache, copy
     target = os.path.join(self.__cache, os.path.basename(dist.location))
     if not os.path.exists(target):

@@ -24,9 +24,10 @@ except ImportError:
 
 
 def test_resolvable_package():
+  builder = ResolverOptionsBuilder()
   source_name = 'foo-2.3.4.tar.gz'
   pkg = SourcePackage.from_href(source_name)
-  resolvable = ResolvablePackage.from_string(source_name, ResolverOptionsBuilder())
+  resolvable = ResolvablePackage.from_string(source_name, builder)
   assert resolvable.packages() == [pkg]
 
   mock_iterator = mock.create_autospec(Iterator, spec_set=True)
@@ -36,14 +37,16 @@ def test_resolvable_package():
   assert mock_iterator.iter.mock_calls == []
   assert resolvable.name == 'foo'
   assert resolvable.exact is True
-  # TODO(wickman) Implement extras parsing for resolvable packages.
   assert resolvable.extras() == []
 
+  resolvable = ResolvablePackage.from_string(source_name + '[extra1,extra2]', builder)
+  assert resolvable.extras() == ['extra1', 'extra2']
+
   assert Resolvable.get('foo-2.3.4.tar.gz') == ResolvablePackage.from_string(
-      'foo-2.3.4.tar.gz', ResolverOptionsBuilder())
+      'foo-2.3.4.tar.gz', builder)
 
   with pytest.raises(ResolvablePackage.InvalidRequirement):
-    ResolvablePackage.from_string('foo', ResolverOptionsBuilder())
+    ResolvablePackage.from_string('foo', builder)
 
 
 def test_resolvable_repository():

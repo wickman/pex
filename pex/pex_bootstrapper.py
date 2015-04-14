@@ -60,13 +60,27 @@ def monkeypatch_build_zipmanifest():
   pkg_resources.build_zipmanifest = memoized_build_zipmanifest
 
 
+def find_in_path(target_interpreter):
+  if os.path.exists(target_interpreter):
+    return target_interpreter
+
+  for directory in os.getenv('PATH', '').split(os.pathsep):
+    try_path = os.path.join(directory, target_interpreter)
+    if os.path.exists(try_path):
+      return try_path
+
+
 def maybe_reexec_pex(target_interpreter):
+  from .common import die
   from .tracer import TRACER
-  target = os.path.realpath(target_interpreter)
+  target = find_in_path(target_interpreter)
+  if not target:
+    die('Failed to find interpreter specified by PEX_PYTHON: %s' % target)
   current = os.path.realpath(sys.executable)
   if os.path.exists(target) and target != current:
     TRACER.log('Detected PEX_PYTHON, re-exec to %s' % target)
-    os.execve(target_interpreter, [target_interpreter] + sys.argv, os.environ)
+    del os.environ['PEX_PYTHON']
+    os.execve(target, [target_interpreter] + sys.argv, os.environ)
 
 
 def bootstrap_pex(entry_point):
@@ -74,7 +88,6 @@ def bootstrap_pex(entry_point):
   monkeypatch_build_zipmanifest()
   register_finders()
 
-  # TODO(wickman) Support PEX_PYTHON_TYPE
   python_env = os.getenv('PEX_PYTHON')
   if python_env:
     maybe_reexec_pex(python_env)

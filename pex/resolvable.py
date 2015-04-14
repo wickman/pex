@@ -1,30 +1,15 @@
 # Copyright 2015 Pants project contributors (see CONTRIBUTORS.md).
 # Licensed under the Apache License, Version 2.0 (see LICENSE).
 
-import os
-import re
 from abc import abstractmethod, abstractproperty
 
-from pkg_resources import Requirement, safe_extra
+from pkg_resources import Requirement
 
 from .base import maybe_requirement, requirement_is_exact
 from .compatibility import string as compatibility_string
 from .compatibility import AbstractClass
-from .installer import InstallerBase, Packager
 from .package import Package
-from .resolver_options import ResolverOptionsBuilder
-
-_EXTRAS_PATTERN = re.compile(r'(?P<main>.*)\[(?P<extras>.*)\]$')
-
-
-def strip_extras(resolvable_string):
-  match = _EXTRAS_PATTERN.match(resolvable_string)
-  if match:
-    resolvable_string, extras = match.groupdict()['main'], match.groupdict()['extras']
-    extras = [safe_extra(extra.strip()) for extra in extras.split(',')]
-  else:
-    extras = []
-  return resolvable_string, extras
+from .resolver_options import ResolverOptionsBuilder, ResolverOptionsInterface
 
 
 class Resolvable(AbstractClass):
@@ -37,6 +22,11 @@ class Resolvable(AbstractClass):
 
   @classmethod
   def register(cls, implementation):
+    """Register an implementation of a Resolvable.
+
+    :param implementation: The resolvable implementation.
+    :type implementation: :class:`Resolvable`
+    """
     cls._REGISTRY.append(implementation)
 
   @classmethod
@@ -65,7 +55,15 @@ class Resolvable(AbstractClass):
     raise cls.InvalidRequirement('Resolvable is abstract.')
 
   def __init__(self, options):
-    self.options = options
+    if not isinstance(options, ResolverOptionsInterface):
+      raise TypeError('Resolvable must be initialized with a ResolverOptionsInterface, got %s' % (
+          type(options)))
+    self._options = options
+
+  @property
+  def options(self):
+    """The ResolverOptions for this Resolvable."""
+    return self._options
 
   @abstractmethod
   def compatible(self, iterator):
@@ -138,15 +136,13 @@ class ResolvablePackage(Resolvable):
   # TODO(wickman) Implement extras parsing for ResolvablePackage
   @classmethod
   def from_string(cls, requirement_string, options_builder):
-    requirement_string, extras = strip_extras(requirement_string)
     package = Package.from_href(requirement_string)
     if package is None:
       raise cls.InvalidRequirement('Requirement string does not appear to be a package.')
-    return cls(package, options_builder.build(package.name), extras=extras)
+    return cls(package, options_builder.build(package.name))
 
-  def __init__(self, package, options, extras=None):
+  def __init__(self, package, options):
     self.package = package
-    self._extras = extras
     super(ResolvablePackage, self).__init__(options)
 
   def compatible(self, iterator):
@@ -163,8 +159,9 @@ class ResolvablePackage(Resolvable):
   def exact(self):
     return True
 
+  # TODO(wickman) Implement extras parsing for ResolvablePackages
   def extras(self, interpreter=None):
-    return self._extras
+    return []
 
   def __eq__(self, other):
     return isinstance(other, ResolvablePackage) and self.package == other.package
@@ -222,35 +219,6 @@ class ResolvableRequirement(Resolvable):
     return str(self.requirement)
 
 
-class ResolvableDirectory(ResolvablePackage):
-  """A source directory (with setup.py) resolvable."""
-
-  @classmethod
-  def is_installable(cls, requirement_string):
-    if not os.path.isdir(requirement_string):
-      return False
-    return os.path.isfile(os.path.join(requirement_string, 'setup.py'))
-
-  @classmethod
-  def from_string(cls, requirement_string, options_builder):
-    requirement_string, extras = strip_extras(requirement_string)
-    if cls.is_installable(requirement_string):
-      try:
-        # TODO(wickman) This is one case where interpreter is necessary to be fully correct.  This
-        # may indicate that packages() should take interpreter like extras does.  Once we have
-        # metadata in setup.cfg or whatever, then we can get the interpreter out of the equation.
-        sdist = Packager(requirement_string).sdist()
-      except InstallerBase.Error:
-        raise cls.InvalidRequirement('Could not create source distribution for %s' %
-            requirement_string)
-      package = Package.from_href(sdist)
-      return ResolvablePackage(package, options_builder.build(package.name), extras=extras)
-    else:
-      raise cls.InvalidRequirement('%s does not appear to be an installable directory.'
-          % requirement_string)
-
-
-Resolvable.register(ResolvableDirectory)
 Resolvable.register(ResolvableRepository)
 Resolvable.register(ResolvablePackage)
 Resolvable.register(ResolvableRequirement)

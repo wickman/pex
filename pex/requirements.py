@@ -81,6 +81,14 @@ def requirements_from_lines(lines, builder=None, relpath=None):
 
 
 def requirements_from_file(filename, builder=None):
+  """Return a list of :class:`Resolvable` objects from a requirements.txt file.
+
+  :param filename: The filename of the requirements.txt
+  :keyword builder: (optional) The ResolverOptionsBuilder from which we should inherit
+    default resolver options.
+  :type builder: :class:`ResolverOptionsBuilder`
+  """
+
   relpath = os.path.dirname(filename)
   with open(filename, 'r') as fp:
     return requirements_from_lines(fp.readlines(), builder=builder, relpath=relpath)

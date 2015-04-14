@@ -116,6 +116,8 @@ class Resolver(object):
     translator = options.get_translator(self._interpreter, self._platform)
     with TRACER.timed('Fetching %s' % package.url, V=2):
       local_package = Package.from_href(context.fetch(package))
+    if local_package is None:
+      raise Untranslateable('Could not fetch package %s' % package)
     with TRACER.timed('Translating %s into distribution' % local_package.path, V=2):
       dist = translator.translate(local_package)
     if dist is None:
@@ -141,7 +143,7 @@ class Resolver(object):
         processed_resolvables.add(resolvable)
 
       for resolvable, packages in resolvable_set.packages():
-        assert len(packages) > 0
+        assert len(packages) > 0, 'ResolvableSet.packages(%s) should not be empty' % resolvable
         package = next(iter(packages))
         if resolvable.name in processed_packages:
           # TODO implement backtracking?

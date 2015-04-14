@@ -3,8 +3,23 @@ CHANGES
 =======
 
 ----------
-0.9.0-dev0
+1.0.0.dev0
 ----------
+
+* Adds a number of flag aliases to be more compatible with pip command lines: ``--no-index``,
+  ``-f``, ``--find-links``, ``--index-url``, ``--no-use-wheel``.  Removes ``-p`` in favor of
+  ``-o`` exclusively.
+
+* BREAKING CHANGE: ``pex -r`` now takes requirements.txt filenames and *not* requirement
+  specs.  Requirement specs are now passed as arguments to the pex tool.  Use ``--`` to escape
+  command line arguments passed to interpreters spawned by pex.  Implements
+  `#5 <https://github.com/pantsbuild/pex/issues/5>`_.
+
+-----
+0.9.0
+-----
+
+This is the last release before the 1.0.0 development branch is started.
 
 * Change the setuptools range to >=2.2,<16 by handling EntryPoint changes as well as
   being flexible on whether ``pkg_resources`` is a package or a module.  Fixes

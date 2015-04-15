@@ -7,8 +7,9 @@ import threading
 import time
 from contextlib import contextmanager
 
-__all__ = ('TraceLogger',)
+from .variables import Variables
 
+__all__ = ('TraceLogger',)
 
 class Trace(object):
   __slots__ = ('msg', 'verbosity', 'parent', 'children', '_clock', '_start', '_stop')
@@ -132,4 +133,7 @@ class TraceLogger(object):
       self._local.parent = None
 
 
-TRACER = TraceLogger(predicate=TraceLogger.env_filter('PEX_VERBOSE'), prefix='pex: ')
+TRACER = TraceLogger(
+   predicate=lambda verbosity: verbosity <= ENV.PEX_VERBOSE,
+   prefix='pex: '
+)

@@ -11,6 +11,7 @@ from twitter.common.contextutil import temporary_file
 from pex.compatibility import PY2
 from pex.http import Context, RequestsContext, StreamFilelike, UrllibContext
 from pex.link import Link
+from pex.variables import Variables
 
 try:
   from unittest import mock
@@ -139,10 +140,9 @@ def test_requests_context_invalid_retries():
 
 @pytest.mark.skipif(NO_REQUESTS)
 def test_requests_context_retries_from_environment():
-
   retry_count = '42'
-  with mock.patch.dict('os.environ', {'PEX_HTTP_RETRIES': retry_count}):
-    assert RequestsContext(verify=False)._max_retries == int(retry_count)
+  env = Variables({'PEX_HTTP_RETRIES': retry_count})
+  assert RequestsContext(verify=False, env=env)._max_retries == int(retry_count)
 
 
 def timeout_side_effect(timeout_error=None, num_timeouts=1):

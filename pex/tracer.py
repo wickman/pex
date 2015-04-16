@@ -7,9 +7,10 @@ import threading
 import time
 from contextlib import contextmanager
 
-from .variables import Variables
+from .variables import ENV
 
 __all__ = ('TraceLogger',)
+
 
 class Trace(object):
   __slots__ = ('msg', 'verbosity', 'parent', 'children', '_clock', '_start', '_stop')

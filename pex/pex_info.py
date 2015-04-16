@@ -5,7 +5,6 @@ from __future__ import absolute_import, print_function
 
 import json
 import os
-import sys
 import warnings
 from collections import namedtuple
 
@@ -13,6 +12,7 @@ from .common import open_zip
 from .compatibility import string as compatibility_string
 from .compatibility import PY2
 from .orderedset import OrderedSet
+from .variables import ENV
 
 PexPlatform = namedtuple('PexPlatform', 'interpreter version strict')
 
@@ -64,7 +64,6 @@ class PexInfo(object):
   PATH = 'PEX-INFO'
   INTERNAL_CACHE = '.deps'
 
-
   @classmethod
   def make_build_properties(cls):
     from .interpreter import PythonInterpreter
@@ -110,8 +109,8 @@ class PexInfo(object):
       'script': env.PEX_SCRIPT,
       'zip_safe': not env.PEX_FORCE_LOCAL,
       'inherit_path': env.PEX_INHERIT_PATH,
-      'ignore_errors': env.IGNORE_ERRORS,
-      'always_write_cache': env.ALWAYS_WRITE_CACHE,
+      'ignore_errors': env.PEX_IGNORE_ERRORS,
+      'always_write_cache': env.PEX_ALWAYS_CACHE,
     }
     # Filter out empty entries.
     return cls(info=dict((k, v) for (k, v) in pex_info.items() if v is not None))

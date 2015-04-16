@@ -63,7 +63,8 @@ class MktempTeardownRegistry(object):
 
   def teardown(self):
     for td in self._registry.pop(self._getpid(), []):
-      self._rmtree(td)
+      if self._exists(td):
+        self._rmtree(td)
 
 
 _MKDTEMP_SINGLETON = MktempTeardownRegistry()

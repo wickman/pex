@@ -260,7 +260,7 @@ class PEX(object):  # noqa: T000
       # squash all exceptions on interpreter teardown -- the primary type here are
       # atexit handlers failing to run because of things such as:
       #   http://stackoverflow.com/questions/2572172/referencing-other-modules-in-atexit
-      if self._vars.PEX_TEARDOWN_VERBOSE:
+      if not self._vars.PEX_TEARDOWN_VERBOSE:
         sys.stderr.flush()
         sys.stderr = DevNull()
         sys.excepthook = lambda *a, **kw: None
@@ -286,8 +286,7 @@ class PEX(object):  # noqa: T000
     else:
       return self.execute_interpreter()
 
-  @classmethod
-  def execute_interpreter(cls):
+  def execute_interpreter(self):
     force_interpreter = self._vars.PEX_INTERPRETER
     # TODO(wickman) Is this necessary?
     if force_interpreter:
@@ -301,7 +300,7 @@ class PEX(object):  # noqa: T000
       except IOError as e:
         die("Could not open %s in the environment [%s]: %s" % (sys.argv[1], sys.argv[0], e))
       sys.argv = sys.argv[1:]
-      cls.execute_content(name, content)
+      self.execute_content(name, content)
     else:
       import code
       code.interact()
@@ -345,7 +344,7 @@ class PEX(object):  # noqa: T000
   def execute_entry(self, entry_point):
     runner = self.execute_pkg_resources if ':' in entry_point else self.execute_module
 
-    if self._vars.PEX_PROFILE:
+    if not self._vars.PEX_PROFILE:
       runner(entry_point)
     else:
       import pstats, cProfile

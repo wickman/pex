@@ -140,7 +140,7 @@ class PEXEnvironment(Environment):
 
     return self._working_set
 
-  def _resolve(self, reqs):
+  def _resolve(self, working_set, reqs):
     reqs = reqs[:]
     unresolved_reqs = []
 
@@ -182,7 +182,7 @@ class PEXEnvironment(Environment):
     all_reqs = [Requirement.parse(req) for req in self._pex_info.requirements]
 
     working_set = WorkingSet([])
-    resolved = self._resolve()
+    resolved = self._resolve(working_set, all_reqs)
 
     for dist in resolved:
       with TRACER.timed('Activating %s' % dist):

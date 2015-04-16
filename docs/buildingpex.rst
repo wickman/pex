@@ -22,7 +22,7 @@ and invoke it.  When no entry point is specified, "invocation" means starting an
     >>>
 
 This creates an ephemeral environment that only exists for the duration of the ``pex`` command invocation
-and is garbage collected immediately following.
+and is garbage collected immediately on exit.
 
 You can tailor which interpreter is used by specifying ``--python=PATH``.  PATH can be either the
 absolute path of a Python binary or the name of a Python interpreter within the environment, e.g.::
@@ -39,13 +39,13 @@ absolute path of a Python binary or the name of a Python interpreter within the 
     SyntaxError: invalid syntax
 
 
-
 Specifying requirements
 -----------------------
 
-Requirements are specified using the same form as expected by ``setuptools``, e.g. ``flask``, ``setuptools==2.1.2``,
-``Django>=1.4,<1.6``.  These are specified as arguments to pex and any number (including 0) may be specified.
-For example, to start an environment with ``flask`` and ``psutil>1``::
+Requirements are specified using the same form as expected by ``pip`` and ``setuptools``, e.g.
+``flask``, ``setuptools==2.1.2``, ``Django>=1.4,<1.6``.  These are specified as arguments to pex
+and any number (including 0) may be specified.  For example, to start an environment with ``flask``
+and ``psutil>1``::
 
     $ pex flask 'psutil>1'
     Python 2.6.9 (unknown, Jan  2 2014, 14:52:48)
@@ -204,20 +204,28 @@ and when invoked uses the environment PyPy::
     (InteractiveConsole)
     >>> import flask
 
+To specify an explicit Python shebang line (e.g. from a non-standard location or not on $PATH),
+you can use the ``--python-shebang`` option::
+
+    $ dist/pex --python-shebang='/Users/wickman/Python/CPython-3.4.2/bin/python3.4' -o my.pex
+    $ head -1 my.pex
+    #!/Users/wickman/Python/CPython-3.4.2/bin/python3.4
+
 
 Tailoring requirement resolution
 --------------------------------
 
-By default, ``pex`` fetches artifacts from PyPI.  This can be disabled with ``--no-index``.
+In general, ``pex`` honors the same options as pip when it comes to resolving packages.  Like pip,
+by default ``pex`` fetches artifacts from PyPI.  This can be disabled with ``--no-index``.
 
-If PyPI fetching is disabled, you will need to specify a search repository via ``-f/--find-links``.  This
-may be a directory on disk or a remote simple http server.
+If PyPI fetching is disabled, you will need to specify a search repository via ``-f/--find-links``. 
+This may be a directory on disk or a remote simple http server.
 
 For example, you can delegate artifact fetching and resolution to ``pip wheel`` for whatever
 reason -- perhaps you're running a firewalled mirror -- but continue to package with pex::
 
-    $ pip wheel sphinx sphinx_rtd_theme
-    $ pex sphinx sphinx_rtd_theme -e sphinx:main --no-index --find-links=wheelhouse -o sphinx.pex
+    $ pip wheel -w /tmp/wheelhouse sphinx sphinx_rtd_theme
+    $ pex -f /tmp/wheelhouse --no-index -e sphinx:main -o sphinx.pex sphinx sphinx_rtd_theme
 
 
 Tailoring PEX execution

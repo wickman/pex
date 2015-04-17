@@ -238,7 +238,7 @@ class Variables(object):
     """
     return self._get_int('PEX_VERBOSE', default=0)
 
-  # TODO(wickman) Remove and push into --flags.
+  # TODO(wickman) Remove and push into --flags.  #94
   @property
   def PEX_HTTP_RETRIES(self):
     """Integer

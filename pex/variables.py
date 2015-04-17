@@ -18,7 +18,7 @@ class Variables(object):
       return 'Unknown', 'Unknown'
     pydoc = pydoc.splitlines()
     variable_type = pydoc[0]
-    variable_text = ' '.join(line.strip() for line in pydoc[2:])
+    variable_text = ' '.join(filter(None, (line.strip() for line in pydoc[2:])))
     return variable_type, variable_text
 
   @classmethod
@@ -41,18 +41,17 @@ class Variables(object):
   def set(self, variable, value):
     self._environ[variable] = str(value)
 
-  def _get_bool(self, variable, default=False, negate=False):
+  def _get_bool(self, variable, default=False):
     value = self._environ.get(variable)
     if value is not None:
       if value.lower() in ('0', 'false'):
-        rvalue = False
+        return False
       elif value.lower() in ('1', 'true'):
-        rvalue = True
+        return True
       else:
         die('Invalid value for %s, must be 0/1/false/true, got %r' % (variable, value))
     else:
-      rvalue = default
-    return not rvalue if negate else rvalue
+      return default
 
   def _get_string(self, variable, default=None):
     return self._environ.get(variable, default)
@@ -79,7 +78,6 @@ class Variables(object):
     can reduce the RAM necessary to launch the PEX.  The data will be written into $PEX_ROOT,
     which by default is $HOME/.pex.  Default: false.
     """
-
     return self._get_bool('PEX_ALWAYS_CACHE', default=False)
 
   @property
@@ -90,6 +88,15 @@ class Variables(object):
     available in the PEX environment.  Default: false.
     """
     return self._get_bool('PEX_COVERAGE', default=False)
+
+  @property
+  def PEX_COVERAGE_FILENAME(self):
+    """Filename
+
+    Write the coverage data to the specified filename.  If PEX_COVERAGE_FILENAME is not specified
+    but PEX_COVERAGE is, coverage information will be printed to stdout and not saved.
+    """
+    return self._get_path('PEX_COVERAGE_FILENAME', default=None)
 
   @property
   def PEX_FORCE_LOCAL(self):
@@ -145,24 +152,25 @@ class Variables(object):
 
   @property
   def PEX_PROFILE(self):
-    """Filename
+    """Boolean
 
-    Enable application profiling and dump a profile into the specified filename in the standard
-    "profile" module format.
+    Enable application profiling.  If specified and PEX_PROFILE_FILENAME is not specified, PEX will
+    print profiling information to stdout.
     """
     return self._get_path('PEX_PROFILE', default=None)
 
   @property
-  def PEX_PROFILE_ENTRIES(self):
-    """Integer
+  def PEX_PROFILE_FILENAME(self):
+    """Filename
 
-    Toggle the number of profile entries printed out to stdout when profiling.  Default: 1000.
+    Profile the application and dump a profile into the specified filename in the standard
+    "profile" module format.
     """
-    return self._get_int('PEX_PROFILE_ENTRIES', default=1000)
+    return self._get_path('PEX_PROFILE_FILENAME', default=None)
 
   @property
   def PEX_PROFILE_SORT(self):
-    """Integer
+    """String
 
     Toggle the profile sorting algorithm used to print out profile columns.  Default:
     'cumulative'.
@@ -187,6 +195,18 @@ class Variables(object):
     not-zip-safe eggs and all wheels to disk in order to activate them.  Default: ~/.pex
     """
     return self._get_path('PEX_ROOT', default=None)
+
+  @property
+  def PEX_PATH(self):
+    """A set of one or more PEX files
+
+    Merge the packages from other PEX files into the current environment.  This allows you to
+    do things such as create a PEX file containing the "coverage" module or create PEX files
+    containing plugin entry points to be consumed by a main application.  Paths should be
+    specified in the same manner as $PATH, e.g. PEX_PATH=/path/to/pex1.pex:/path/to/pex2.pex
+    and so forth.
+    """
+    return self._get_string('PEX_PATH', default='')
 
   @property
   def PEX_SCRIPT(self):

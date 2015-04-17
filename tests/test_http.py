@@ -134,8 +134,9 @@ class MockHttpLibResponse(BytesIO):
 
 @pytest.mark.skipif(NO_REQUESTS)
 def test_requests_context_invalid_retries():
+  env = Variables(environ={'PEX_HTTP_RETRIES': '-1'})
   with pytest.raises(ValueError):
-    RequestsContext(verify=False, max_retries=-1)
+    RequestsContext(verify=False, env=env)
 
 
 @pytest.mark.skipif(NO_REQUESTS)
@@ -181,8 +182,9 @@ def test_requests_context_retries_connect_timeout_retries_exhausted():
       '_make_request') as mock_make_request:
 
     url, mock_make_request.side_effect = timeout_side_effect(num_timeouts=3)
+    env = Variables(environ={'PEX_HTTP_RETRIES': '2'})
 
-    context = RequestsContext(verify=False, max_retries=2)
+    context = RequestsContext(verify=False, env=env)
 
     with pytest.raises(Context.Error):
       context.read(Link.wrap(url))
@@ -212,8 +214,9 @@ def test_requests_context_retries_read_timeout_retries_exhausted():
     url, mock_make_request.side_effect = timeout_side_effect(
         timeout_error=requests.packages.urllib3.exceptions.ReadTimeoutError,
         num_timeouts=3)
+    env = Variables(environ={'PEX_HTTP_RETRIES': '2'})
 
-    context = RequestsContext(verify=False, max_retries=2)
+    context = RequestsContext(verify=False, env=env)
 
     with pytest.raises(Context.Error):
       context.read(Link.wrap(url))

@@ -195,7 +195,7 @@ class RequestsContext(Context):
 
     return session
 
-  def __init__(self, session=None, verify=True, max_retries=5, env=ENV):
+  def __init__(self, session=None, verify=True, env=ENV):
     if requests is None:
       raise RuntimeError('requests is not available.  Cannot use a RequestsContext.')
 

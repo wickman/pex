@@ -45,13 +45,13 @@ possible and is more in-line with what pex does philosophically.
 Simple Examples
 ===============
 
-Launch an interpreter with ``requests`` and ``flask`` in the environment:
+Launch an interpreter with ``requests``, ``flask`` and ``psutil`` in the environment:
 
 .. code-block:: bash
 
-    $ pex requests flask
+    $ pex requests flask 'psutil>2,<3'
 
-Or instead freeze your current virtualenv and execute it anywhere:
+Or instead freeze your current virtualenv via requirements.txt and execute it anywhere:
 
 .. code-block:: bash
 
@@ -59,12 +59,11 @@ Or instead freeze your current virtualenv and execute it anywhere:
     $ deactivate
     $ ./my_virtualenv.pex
 
-Run webserver.py in an environment containing ``flask`` and the setup.py package in
-the current working directory:
+Run webserver.py in an environment containing ``flask`` as a quick way to experiment:
 
-.. code-block::
+.. code-block:: bash
 
-    $ pex flask . -- webserver.py
+    $ pex flask -- webserver.py
 
 Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sphinx:main``:
 
@@ -72,27 +71,27 @@ Launch Sphinx in an ephemeral pex environment using the Sphinx entry point ``sph
 
     $ pex sphinx -e sphinx:main -- --help
 
-Build a standalone pex binary into ``pex.pex``:
+Build a standalone pex binary into ``pex.pex`` using the ``pex`` console_scripts entry point:
 
 .. code-block:: bash
 
     $ pex pex -c pex -o pex.pex
 
-Build a standalone pex binary but invoked using a specific Python version:
+You can also build pex files that use a specific interpreter type:
 
 .. code-block:: bash
 
     $ pex pex -c pex --python=pypy -o pypy-pex.pex
 
 Most pex options compose well with one another, so the above commands can be
-mixed and matched.
+mixed and matched.  For a full list of options, just type ``pex --help``.
 
 
-Integrating into your project
-=============================
+Integrating pex into your workflow
+==================================
 
-If you use tox, a simple way to integrate pex into your workflow is to add a
-packaging test environment to your ``tox.ini``:
+If you use tox (and you should!), a simple way to integrate pex into your
+workflow is to add a packaging test environment to your ``tox.ini``:
 
 .. code-block:: ini
 

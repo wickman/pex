@@ -148,3 +148,12 @@ pex.util module
     :members:
     :show-inheritance:
 
+
+pex.variables module
+--------------------
+
+.. _PexVariables:
+
+.. automodule:: pex.variables
+    :members:
+    :show-inheritance:

@@ -15,7 +15,7 @@ solution similar in spirit to `virtualenv <http://virtualenv.org>`_.  PEX files 
 to deploy Python applications to production since 2011.
 
 To learn more about what the .pex format is and why it could be useful for
-you, see :ref:`whatispex`  For the impatient, there is also a lightning
+you, see :ref:`whatispex`  For the impatient, there is also a (slightly outdated) lightning
 talk published by Twitter University: `WTF is PEX?
 <http://www.youtube.com/watch?v=NmpnGhRwsu0>`_.
 

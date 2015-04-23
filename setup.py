@@ -39,6 +39,7 @@ setup(
   packages = [
     'pex',
     'pex.bin',
+    'pex.commands',
   ],
   install_requires = [
     SETUPTOOLS_REQUIREMENT,

@@ -1,5 +1,6 @@
 import os
 import pprint
+from distutils import log
 
 from pex.bin.pex import configure_clp, build_pex
 from pex.common import die
@@ -28,13 +29,17 @@ class bdist_pex(Command):
   def finalize_options(self):
     self.pex_args = self.pex_args.split()
 
-  def _write(self, pex_builder, entry_point=None):
-    pass
+  def _write(self, pex_builder, name, script=None):
+    builder = pex_builder.clone()
+
+    if script is not None:
+      builder.set_script(script)
+
+    target = os.path.join(self.bdist_dir, name + '.pex')
+
+    builder.build(target)
 
   def run(self):
-    # pprint.pprint(self.__dict__)
-    # pprint.pprint(self.distribution.__dict__)
-
     name = self.distribution.get_name()
     parser, options_builder = configure_clp()
     package_dir = os.path.dirname(os.path.realpath(os.path.expanduser(self.distribution.script_name)))
@@ -49,18 +54,17 @@ class bdist_pex(Command):
 
     reqs = [package_dir] + reqs
     pex_builder = build_pex(reqs, options, options_builder)
-    pex_builder.build(os.path.join(self.bdist_dir, name + '.pex'))
-    return 0
 
-    """
-    if self.all:
+    if self.bdist_all:
       for entry_point in self.distribution.entry_points['console_scripts']:
-
-
-    if not self.all:
-      entry_point = self._detect_entry_point(self.distribution)
-      self._write(pex_builder, entry_point)
+        script_name = entry_point.split('=')[0].strip()
+        log.info('Writing %s to %s.pex' % (script_name, script_name))
+        self._write(pex_builder, script_name, script=script_name)
     else:
-      for entry_point in self.distribution.entry_points['console_scripts']:
-    """
-
+      if len(self.distribution.entry_points['console_scripts']) == 1:
+        script_name = self.distribution.entry_points['console_scripts'][0].split('=')[0].strip()
+        log.info('Writing %s to %s.pex' % (script_name, name))
+        self._write(pex_builder, name, script=script_name)
+      else:
+        log.info('Writing environment pex into %s.pex' % name)
+        self._write(pex_builder, name, script=None)

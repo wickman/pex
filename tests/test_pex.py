@@ -124,7 +124,8 @@ def test_minimum_sys_modules():
 @pytest.mark.parametrize('project_name', ('my_project', 'my-project'))
 @pytest.mark.parametrize('installer_impl', (EggInstaller, WheelInstaller))
 def test_pex_script(installer_impl, project_name, zip_safe):
-  with make_installer(name=project_name, installer_impl=installer_impl, zip_safe=zip_safe) as installer:
+  kw = dict(name=project_name, installer_impl=installer_impl, zip_safe=zip_safe)
+  with make_installer(**kw) as installer:
     bdist = DistributionHelper.distribution_from_path(installer.bdist())
 
     env_copy = os.environ.copy()
